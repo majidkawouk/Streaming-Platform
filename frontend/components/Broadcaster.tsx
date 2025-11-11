@@ -21,9 +21,13 @@ export default function Broadcaster() {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedMic, setSelectedMic] = useState("");
   const [selectedCam, setSelectedCam] = useState("");
-
+  const [isMounted, setIsMounted] = useState(false);
   const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null);
   const [audioTrack, setAudioTrack] = useState<MediaStreamTrack | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     async function fetchDevices() {
@@ -139,6 +143,8 @@ export default function Broadcaster() {
       videoTrack.enabled = !videoTrack.enabled;
     }
   };
+  
+  if (!isMounted) return null;
 
   return (
     <div className="min-h-screen bg-[#0a0a0e] text-white p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">

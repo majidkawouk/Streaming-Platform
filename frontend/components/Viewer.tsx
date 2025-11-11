@@ -3,7 +3,6 @@
 import { useRef, useState, useEffect } from "react";
 import { io, Socket } from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
-import { motion } from "framer-motion";
 import { FaCrown, FaUserAlt } from "react-icons/fa";
 
 export default function Viewer({ params }: { params: { viewer: string } }) {
@@ -12,90 +11,103 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
   const [status, setStatus] = useState("Connecting...");
   const [messages, setMessages] = useState<{ user: string; text: string }[]>([]);
   const [input, setInput] = useState("");
+  const [socketId, setSocketId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const socketRef = useRef<Socket>();
 
   useEffect(() => {
+    setIsMounted(true); 
+
     const startStream = async () => {
-      const socket = io("http://localhost:3000");
-      socketRef.current = socket;
+      try {
+        const socket = io("http://localhost:3000");
+        socketRef.current = socket;
 
-      socket.on("connect", () => setSocketId(socket.id));
+        socket.on("connect", () => setSocketId(socket.id ?? null));
 
-   socket.on("chat-message", (msg: { user: string; text: string; producerId: string }) => {
-  if (msg.producerId === viewer) { 
-    setMessages((prev) => [...prev, msg]);
-  }
-});
-
-
-
-
-      const res = await fetch("http://localhost:3000/rtpCapabilities");
-      const rtpCapabilities = await res.json();
-      const device = new mediasoupClient.Device();
-      await device.load({ routerRtpCapabilities: rtpCapabilities });
-
-      socket.emit("createTransport", { consuming: true }, async (params: any) => {
-        const recvTransport = device.createRecvTransport(params);
-
-        recvTransport.on("connect", ({ dtlsParameters }, callback) => {
-          socket.emit("connectTransport", {
-            dtlsParameters,
-            consuming: true,
-          });
-          callback();
-        });
-
-        socket.emit(
-          "consume",
-          { producerId: viewer, rtpCapabilities: device.rtpCapabilities },
-          async (data: any) => {
-            if (data.error) return setStatus("Cannot consume stream");
-
-            const consumer = await recvTransport.consume(data);
-            const stream = new MediaStream();
-            stream.addTrack(consumer.track);
-
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              videoRef.current.muted = true;
-              await videoRef.current.play();
-              setTimeout(() => {
-                if (videoRef.current) videoRef.current.muted = false;
-              }, 1500);
+        socket.on(
+          "chat-message",
+          (msg: { user: string; text: string; producerId: string }) => {
+            if (msg.producerId === viewer) {
+              setMessages((prev) => [...prev, msg]);
             }
-
-            setStatus("LIVE");
           }
         );
-      });
+
+        const res = await fetch("http://localhost:3000/rtpCapabilities");
+        const rtpCapabilities = await res.json();
+
+        const device = new mediasoupClient.Device();
+        await device.load({ routerRtpCapabilities: rtpCapabilities });
+
+        socket.emit("createTransport", { consuming: true }, async (params: any) => {
+          const recvTransport = device.createRecvTransport(params);
+
+          recvTransport.on("connect", ({ dtlsParameters }, callback) => {
+            socket.emit("connectTransport", { dtlsParameters, consuming: true });
+            callback();
+          });
+
+          socket.emit(
+            "consume",
+            { producerId: viewer, rtpCapabilities: device.rtpCapabilities },
+            async (data: any) => {
+              if (data.error) return setStatus("Cannot consume stream");
+
+              const consumer = await recvTransport.consume(data);
+              const stream = new MediaStream();
+              stream.addTrack(consumer.track);
+
+              if (videoRef.current && isMounted) {
+                videoRef.current.srcObject = stream;
+                try {
+                  await videoRef.current.play();
+                } catch {
+                  console.warn("Autoplay prevented, user interaction required");
+                }
+              }
+
+              if (isMounted) setStatus("LIVE");
+            }
+          );
+        });
+      } catch (err) {
+        console.error(err);
+        if (isMounted) setStatus("Failed to connect");
+      }
     };
 
     startStream();
-  }, [viewer]);
 
- const sendMessage = () => {
-  if (!input.trim() || !socketRef.current) return;
+    return () => {
+      setIsMounted(false);
+      socketRef.current?.disconnect();
+    };
+  }, [viewer, isMounted]);
 
-  socketRef.current.emit("chat-message", {
-    user: socketRef.current.id,
-    text: input,
-    producerId: viewer,
-  });
+  const sendMessage = () => {
+    if (!input.trim() || !socketRef.current) return;
 
-  setMessages((prev) => [...prev, { user: "You", text: input }]);
-  setInput("");
-};
+    socketRef.current.emit("chat-message", {
+      user: socketRef.current.id,
+      text: input,
+      producerId: viewer,
+    });
+
+    setMessages((prev) => [...prev, { user: "You", text: input }]);
+    setInput("");
+  };
 
   return (
     <div className="flex flex-col md:flex-row h-screen text-white font-inter">
-   
       <div className="flex-1 flex flex-col items-center justify-center relative">
         <div className="w-full max-w-[1100px] flex flex-col">
           <div className="relative rounded-lg overflow-hidden shadow-2xl">
             <video
               ref={videoRef}
               playsInline
+              autoPlay
+              muted
               className="w-full aspect-video bg-black"
             />
             <div className="absolute top-3 left-3 flex items-center gap-2 bg-red-600 text-white text-sm px-3 py-1 rounded-full font-semibold">
@@ -119,17 +131,10 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
         </div>
       </div>
 
-
-      <motion.div
-        initial={{ x: 300 }}
-        animate={{ x: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full md:w-[350px] bg-[#18181b] flex flex-col border-l border-[#202024]"
-      >
+      <div className="w-full md:w-[350px] bg-[#18181b] flex flex-col border-l border-[#202024]">
         <div className="px-4 py-3 border-b border-[#202024]">
           <h2 className="text-lg font-semibold">Live Chat</h2>
         </div>
-
 
         <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-[#3a3a40] scrollbar-track-[#18181b]">
           {messages.map((msg, idx) => {
@@ -151,7 +156,6 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
           })}
         </div>
 
-  
         <div className="p-3 border-t border-[#202024] flex gap-2 bg-[#18181b]">
           <input
             value={input}
@@ -167,7 +171,7 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
             Chat
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

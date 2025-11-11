@@ -6,15 +6,30 @@ import StreamThum from "@/components/StreamThum";
 
 export default function Mainpage() {
   const [producersList, setProducersList] = useState<any[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const res = await fetch("http://localhost:3000/producers");
-      const data = await res.json();
-      setProducersList(data);
-    };
-    fetchData();
+    setIsMounted(true); 
   }, []);
+
+  useEffect(() => {
+    if (!isMounted) return; 
+
+    const fetchData = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/producers");
+        const data = await res.json();
+        setProducersList(data);
+      } catch (err) {
+        console.error("Error fetching producers:", err);
+      }
+    };
+
+    fetchData();
+  }, [isMounted]);
+
+ 
+  if (!isMounted) return null;
 
   const categories = [
     { name: "Gaming", image: "/gaming.jpg" },
@@ -26,7 +41,7 @@ export default function Mainpage() {
 
   return (
     <div className="min-h-screen p-5 space-y-12">
-
+    
       <section>
         <h1 className="text-white font-bold text-3xl mb-6">Live Channels</h1>
 
@@ -47,9 +62,10 @@ export default function Mainpage() {
         )}
       </section>
 
-
       <section>
-        <h1 className="text-white font-bold text-3xl mb-6">Browse by Category</h1>
+        <h1 className="text-white font-bold text-3xl mb-6">
+          Browse by Category
+        </h1>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
           {categories.map((cat) => (
             <Link
@@ -63,7 +79,9 @@ export default function Mainpage() {
                 className="w-full h-40 object-cover transition-transform duration-300 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-3">
-                <h3 className="text-white font-semibold text-lg">{cat.name}</h3>
+                <h3 className="text-white font-semibold text-lg">
+                  {cat.name}
+                </h3>
               </div>
             </Link>
           ))}

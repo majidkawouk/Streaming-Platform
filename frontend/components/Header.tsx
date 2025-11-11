@@ -51,26 +51,38 @@ export default function Header() {
           </button>
 
 
-          {dropdownOpen && (
-            <div
-              className="absolute right-0 mt-2 w-48 bg-gray-900 rounded-lg shadow-lg ring-1 ring-gray-700 z-50 animate-fadeIn"
+         {dropdownOpen && (
+    <div
+      className="absolute right-0 mt-2 w-48 bg-gray-900 rounded-lg shadow-lg ring-1 ring-gray-700 z-50 animate-fadeIn"
+    >
+      <ul className="py-2 text-sm text-gray-200">
+        <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
+          <Link href="/profile">Profile</Link>
+        </li>
+        <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
+          <Link href="/settings">Settings</Link>
+        </li>
+        <li className="text-red-400 hover:bg-red-500/20 cursor-pointer transition">
+          {user ? 
+            <button 
+              onClick={logout}
+       
+              className="block w-full text-left px-4 py-2 " 
             >
-              <ul className="py-2 text-sm text-gray-200">
-                <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
-                  Profile
-                </li>
-                <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
-                  Settings
-                </li>
-                <li className="px-4 py-2 text-red-400 hover:bg-red-500/20 cursor-pointer transition">
-                {user ?  <button onClick={logout}>
-                  Sign Out
-                  </button>:<Link href={'/login'}>login</Link> }
-               
-                </li>
-              </ul>
-            </div>
-          )}
+              Sign Out
+            </button> 
+            :
+            <Link href={'/login'}
+      
+              className="block px-4 py-2"
+            >
+              login
+            </Link> 
+          }
+        </li>
+      </ul>
+    </div>
+ )}
         </div>
       </div>
     </header>
