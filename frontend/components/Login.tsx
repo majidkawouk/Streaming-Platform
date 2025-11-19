@@ -1,5 +1,5 @@
 "use client";
-import { Eye, EyeClosed } from "lucide-react";
+import { Eye, EyeClosed, Mail,Lock } from "lucide-react";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -23,8 +23,10 @@ export default function Login() {
             onChange={(e) => setemail(e.target.value)}
             value={email}
             placeholder="Enter your email"
-            className="w-full bg-[#282a36] text-gray-300 placeholder-gray-500 rounded-lg py-3 pl-6 pr-4 border border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            className="w-full bg-[#282a36] text-gray-300 placeholder-gray-500 rounded-lg py-3 pl-10 pr-4 border border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-400"
           />
+         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
+
         </div>
       </div>
       <div className="flex flex-col space-y-2 w-[80%]">
@@ -35,8 +37,9 @@ export default function Login() {
             value={password}
             type={showpass ? "text" : "password"}
             placeholder="Enter your password"
-            className="w-full bg-[#282a36] text-gray-300 placeholder-gray-500 rounded-lg py-3 pl-6 pr-4 border border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            className="w-full bg-[#282a36] text-gray-300 placeholder-gray-500 rounded-lg py-3 pl-10 pr-4 border border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-400"
           />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
 
           {showpass ? (
             <Eye
@@ -69,9 +72,9 @@ export default function Login() {
         </Link>
       </p>
       <div className="flex justify-center items-center gap-2 text-gray-500">
-        <hr className="text-gray-500 md:w-24 w-12" />
+        <hr className="text-gray-500 w-12" />
         or continue with
-         <hr className="text-gray-500 md:w-2 w-12" />
+         <hr className="text-gray-500  w-12" />
       </div>
 
       <div className="flex gap-4">

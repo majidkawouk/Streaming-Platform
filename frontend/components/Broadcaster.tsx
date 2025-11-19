@@ -1,5 +1,4 @@
 "use client";
-
 import { useRef, useState, useEffect } from "react";
 import { io, Socket } from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
@@ -266,9 +265,6 @@ export default function Broadcaster() {
     You are live — viewers can chat here.
   </div>
 </div>
-
-
-  
         <div className="bg-[#181822] p-4 rounded-xl shadow-xl">
           <h3 className="text-xl font-semibold mb-3">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-4">

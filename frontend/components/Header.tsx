@@ -57,7 +57,7 @@ export default function Header() {
     >
       <ul className="py-2 text-sm text-gray-200">
         <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
-          <Link href="/profile">Profile</Link>
+          <Link  href={`/profile/${user?.id}`}>Profile</Link>
         </li>
         <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
           <Link href="/settings">Settings</Link>

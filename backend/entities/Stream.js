@@ -36,6 +36,10 @@ export default new EntitySchema({
       type: "datetime",
       nullable: true,
     },
+    description: {
+      type: "text",
+      nullable: true,
+    },
   },
   relations: {
     user: {

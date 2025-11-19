@@ -65,7 +65,7 @@ export const login = async (req, res) => {
 
 export const getProfile = async (req, res) => {
   try {
-    const user = await userRepo.findOne({ where: { id: req.user.id } });
+    const user = await userRepo.findOne({ where: { id: req.user.id },  relations: ["followers", "following"] });
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -73,6 +73,8 @@ export const getProfile = async (req, res) => {
       id: user.id,
       username: user.username,
       email: user.email,
+      followers: user.followers.length,
+      following: user.following.length,
     });
   } catch (err) {
     console.error("Profile Error:", err);
