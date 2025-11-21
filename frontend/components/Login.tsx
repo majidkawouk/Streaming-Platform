@@ -1,5 +1,5 @@
 "use client";
-import { Eye, EyeClosed, Mail,Lock } from "lucide-react";
+import { Eye, EyeClosed, Mail, Lock } from "lucide-react";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -8,13 +8,28 @@ import { useUser } from "@/context/UserContext";
 export default function Login() {
   const [showpass, setshowpass] = useState(false);
   const [email, setemail] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
   const [password, setopassword] = useState<string>("");
   const { login } = useUser();
 
+  const handlelogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    await login(email, password, setError);
+  };
+
   return (
-    <form className="border-[1px] text-white rounded-lg gap-5 shadow-xl  border-gray-600 md:w-[40%] lg:w-[30%] w-[50%] min-h-150 py-10  flex flex-col items-center">
+    <form
+      className="border-[1px] text-white rounded-lg gap-5 shadow-xl  border-gray-600 md:w-[40%] lg:w-[30%] w-[50%] min-h-150 py-10  flex flex-col items-center"
+      onSubmit={handlelogin}
+    >
       <h1 className="text-2xl font-semibold">Welcome Back</h1>
       <p>Log in to continue your journey</p>
+      {error && (
+        <div className="w-[80%] p-2 bg-red-800/50 border border-red-400 text-red-300 rounded-lg text-center">
+          {error}
+        </div>
+      )}
       <div className="flex flex-col space-y-2 w-[80%]">
         <p className="text-gray-200 text-base font-medium">Email</p>
         <div className="relative">
@@ -25,8 +40,7 @@ export default function Login() {
             placeholder="Enter your email"
             className="w-full bg-[#282a36] text-gray-300 placeholder-gray-500 rounded-lg py-3 pl-10 pr-4 border border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-400"
           />
-         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
-
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
         </div>
       </div>
       <div className="flex flex-col space-y-2 w-[80%]">
@@ -39,7 +53,7 @@ export default function Login() {
             placeholder="Enter your password"
             className="w-full bg-[#282a36] text-gray-300 placeholder-gray-500 rounded-lg py-3 pl-10 pr-4 border border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-400"
           />
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
 
           {showpass ? (
             <Eye
@@ -59,8 +73,8 @@ export default function Login() {
       </div>
 
       <button
+        type="submit"
         className="w-[80%] bg-cyan-400  text-center font-semibold text-black p-3 rounded-md mt-3 "
-        onClick={() => login(email, password)}
       >
         Login
       </button>
@@ -74,7 +88,7 @@ export default function Login() {
       <div className="flex justify-center items-center gap-2 text-gray-500">
         <hr className="text-gray-500 w-12" />
         or continue with
-         <hr className="text-gray-500  w-12" />
+        <hr className="text-gray-500  w-12" />
       </div>
 
       <div className="flex gap-4">
@@ -85,6 +99,7 @@ export default function Login() {
           <FaGoogle className="w-6 h-6" />
         </div>
       </div>
+      
     </form>
   );
 }

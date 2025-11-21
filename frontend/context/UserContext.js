@@ -31,38 +31,44 @@ export const UserProvider = ({ children }) => {
       console.error(err);
     }
   };
-
-  const login = async (email, password) => {
+  const login = async (email, password, onLoginError) => {
     const res = await fetch("http://localhost:3000/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
+    let errorMessage = null;
+
     if (res.ok) {
       setToken(data.token);
       localStorage.setItem("token", data.token);
       await fetchProfile(data.token);
     } else {
-      throw new Error(data.message || "Login failed");
+      errorMessage = data.message || "Login failed";
+    }
+    if (errorMessage && onLoginError) {
+      onLoginError(errorMessage);
     }
   };
 
-  const register = async (username, email, password) => {
+  const register = async (username, email, password, registererror) => {
     const res = await fetch("http://localhost:3000/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, email, password }),
     });
     const data = await res.json();
-
+    let errorMessage = null;
     if (res.ok) {
-
       setToken(data.token);
       localStorage.setItem("token", data.token);
       await fetchProfile(data.token);
     } else {
-      throw new Error(data.message || "Registration failed");
+      errorMessage = data.message || "Registration failed";
+    }
+    if (errorMessage && registererror) {
+      registererror(errorMessage);
     }
   };
 

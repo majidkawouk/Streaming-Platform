@@ -13,30 +13,30 @@ export default function Register() {
   const [cpassword, setCpassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleRegister = async () => {
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (password !== cpassword) {
       setError("Passwords do not match");
       return;
     }
+    await register(username, email, password, setError);
+    console.log("Registered successfully");
 
-    try {
-      await register(username, email, password);
-      console.log("Registered successfully");
-    } catch (err) {
-      console.error(err);
-      setError("Registration failed");
-    }
   };
 
   return (
     <form
-      onSubmit={(e) => e.preventDefault()}
+      onSubmit={handleRegister}
       className="border-[1px] text-white rounded-lg gap-5 shadow-xl border-gray-600 md:w-[40%] lg:w-[30%] w-[50%] min-h-150 py-10 flex flex-col items-center"
     >
       <h1 className="text-2xl font-semibold">Create Your Account</h1>
       <p>Join the stream. Join the community.</p>
 
-      {error && <p className="text-red-400">{error}</p>}
+      {error && (
+        <div className="w-[80%] p-2 bg-red-800/50 border border-red-400 text-red-300 rounded-lg text-center">
+          {error}
+        </div>
+      )}
 
 
       <div className="flex flex-col space-y-2 w-[80%]">
@@ -97,12 +97,12 @@ export default function Register() {
         </div>
       </div>
 
-      <div
-        onClick={handleRegister}
+      <button
+        type="submit"
         className="w-[80%] bg-cyan-400 font-semibold text-center text-black p-3 rounded-md mt-3 cursor-pointer"
       >
         Register
-      </div>
+      </button>
 
       <p className="text-gray-400">
         Already have an account?{" "}
