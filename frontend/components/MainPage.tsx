@@ -13,8 +13,6 @@ export default function Mainpage() {
   }, []);
 
   useEffect(() => {
-    if (!isMounted) return; 
-
     const fetchData = async () => {
       try {
         const res = await fetch("http://localhost:3000/producers");
