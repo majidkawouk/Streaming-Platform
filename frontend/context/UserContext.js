@@ -31,7 +31,7 @@ export const UserProvider = ({ children }) => {
       console.error(err);
     }
   };
-  const login = async (email, password, onLoginError) => {
+  const login = async (email, password, onLoginError, onLoginSuccess) => {
     const res = await fetch("http://localhost:3000/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,6 +44,9 @@ export const UserProvider = ({ children }) => {
       setToken(data.token);
       localStorage.setItem("token", data.token);
       await fetchProfile(data.token);
+      if (onLoginSuccess) {
+        onLoginSuccess("Login successful");
+      }
     } else {
       errorMessage = data.message || "Login failed";
     }
@@ -52,7 +55,7 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const register = async (username, email, password, registererror) => {
+  const register = async (username, email, password, registererror,onRegisterSuccess) => {
     const res = await fetch("http://localhost:3000/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -64,6 +67,9 @@ export const UserProvider = ({ children }) => {
       setToken(data.token);
       localStorage.setItem("token", data.token);
       await fetchProfile(data.token);
+      if (onRegisterSuccess) {
+        onRegisterSuccess("Registration successful");
+      }
     } else {
       errorMessage = data.message || "Registration failed";
     }

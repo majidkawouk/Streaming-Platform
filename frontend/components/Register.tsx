@@ -3,15 +3,23 @@ import { Lock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { FaGoogle, FaTwitch } from "react-icons/fa6";
 import { useUser } from "@/context/UserContext";
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 export default function Register() {
   const { register } = useUser();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const router = useRouter();
   const [password, setPassword] = useState("");
   const [cpassword, setCpassword] = useState("");
   const [error, setError] = useState("");
+  const [Msg, setMsg] = useState("");
+
+   useEffect(() => {
+      if (Msg !== "") {
+        router.push("/");
+      }
+    }, [Msg]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,9 +27,9 @@ export default function Register() {
       setError("Passwords do not match");
       return;
     }
-    await register(username, email, password, setError);
-    console.log("Registered successfully");
-
+    setError("");
+    setMsg("");
+    await register(username, email, password, setError, setMsg);
   };
 
   return (
@@ -37,7 +45,11 @@ export default function Register() {
           {error}
         </div>
       )}
-
+      {Msg !== "" && (
+        <div className="w-[80%] p-2 bg-green-800/50 border border-green-400 text-green-300 rounded-lg text-center">
+          {Msg}
+        </div>
+      )}
 
       <div className="flex flex-col space-y-2 w-[80%]">
         <p className="text-gray-200 text-base font-medium">Username</p>
@@ -67,7 +79,6 @@ export default function Register() {
         </div>
       </div>
 
-
       <div className="flex flex-col space-y-2 w-[80%]">
         <p className="text-gray-200 text-base font-medium">Password</p>
         <div className="relative">
@@ -82,7 +93,6 @@ export default function Register() {
         </div>
       </div>
 
-     
       <div className="flex flex-col space-y-2 w-[80%]">
         <p className="text-gray-200 text-base font-medium">Confirm Password</p>
         <div className="relative">

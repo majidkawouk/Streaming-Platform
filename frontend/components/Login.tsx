@@ -1,21 +1,30 @@
 "use client";
 import { Eye, EyeClosed, Mail, Lock } from "lucide-react";
-
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FaGoogle, FaTwitch } from "react-icons/fa6";
 import { useUser } from "@/context/UserContext";
+
 export default function Login() {
   const [showpass, setshowpass] = useState(false);
   const [email, setemail] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [password, setopassword] = useState<string>("");
+  const [Msg, setMsg] = useState<string>("");
   const { login } = useUser();
+  const router = useRouter();
+  useEffect(() => {
+    if (Msg !== "") {
+      router.push("/");
+    }
+  }, [Msg]);
 
   const handlelogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    await login(email, password, setError);
+    setMsg("");
+    await login(email, password, setError, setMsg);
   };
 
   return (
@@ -28,6 +37,11 @@ export default function Login() {
       {error && (
         <div className="w-[80%] p-2 bg-red-800/50 border border-red-400 text-red-300 rounded-lg text-center">
           {error}
+        </div>
+      )}
+      {Msg !== "" && (
+        <div className="w-[80%] p-2 bg-green-800/50 border border-green-400 text-green-300 rounded-lg text-center">
+          {Msg}
         </div>
       )}
       <div className="flex flex-col space-y-2 w-[80%]">
@@ -99,7 +113,6 @@ export default function Login() {
           <FaGoogle className="w-6 h-6" />
         </div>
       </div>
-      
     </form>
   );
 }
