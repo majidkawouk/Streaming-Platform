@@ -55,15 +55,25 @@ createWorker();
 app.get("/rtpCapabilities", (req, res) => res.json(router.rtpCapabilities));
 
 app.get("/producers", (req, res) => {
-  const list = Object.values(producers)
+  const video = Object.values(producers)
     .filter((p) => p.kind === "video")
     .map((p) => ({
-      id: p.producer.id,
+      producerId: p.producer.id,
       socketId: p.socketId,
-      name: p.name || "Untitled Stream",
-      category: p.category || "Uncategorized",
+      name: p.name,
+      category: p.category,
     }));
-  res.json(list);
+
+  const audio = Object.values(producers)
+    .filter((p) => p.kind === "audio")
+    .map((p) => ({
+      producerId: p.producer.id,
+      socketId: p.socketId,
+      name: p.name,
+      category: p.category,
+    }));
+
+  res.json({ video, audio });
 });
 
 io.on("connection", (socket) => {
@@ -152,10 +162,25 @@ io.on("connection", (socket) => {
       callback({ error: err.message });
     }
   });
-
-  socket.on("chat-message", (msg) => {
-    socket.broadcast.emit("chat-message", msg);
+  socket.on("joinRoom", ({ streamerSocketId }) => {
+    socket.join(`stream-${streamerSocketId}`);
+    console.log(`Socket ${socket.id} joined stream-${streamerSocketId}`); 
   });
+
+  socket.on("createroom", ({ streamerSocketId }) => {
+    socket.join(`stream-${streamerSocketId}`);
+    console.log(`Socket ${socket.id} created stream-${streamerSocketId}`);
+  });
+
+socket.on("chat-message", ({ streamerSocketId, text , user }) => {
+  
+  io.to(`stream-${streamerSocketId}`).emit("chat-message", {
+    socketId: socket.id,
+    text,
+    user
+  });
+
+});
 
   socket.on("disconnect", () => {
     console.log(" Disconnected:", socket.id);

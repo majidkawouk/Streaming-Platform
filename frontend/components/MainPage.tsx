@@ -4,29 +4,90 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import StreamThum from "@/components/StreamThum";
 
+interface Producer {
+  producerId: string;
+  socketId: string;
+  name: string;
+  category: string;
+}
+
+interface StreamData {
+  socketId: string;
+  name: string;
+  category: string;
+  videoProducerId: string;
+  audioProducerId: string;
+}
+
 export default function Mainpage() {
-  const [producersList, setProducersList] = useState<any[]>([]);
+  const [streamsList, setStreamsList] = useState<StreamData[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true); 
+    setIsMounted(true);
   }, []);
 
   useEffect(() => {
+    if (!isMounted) return;
+
     const fetchData = async () => {
       try {
         const res = await fetch("http://localhost:3000/producers");
         const data = await res.json();
-        setProducersList(data);
+        console.log("Fetched producers:", data);
+
+        const streamsMap = new Map<string, StreamData>();
+
+        // Process video producers
+        data.video.forEach((producer: Producer) => {
+          if (!streamsMap.has(producer.socketId)) {
+            streamsMap.set(producer.socketId, {
+              socketId: producer.socketId,
+              name: producer.name,
+              category: producer.category,
+              videoProducerId: producer.producerId,
+              audioProducerId: "",
+            });
+          } else {
+            const stream = streamsMap.get(producer.socketId)!;
+            stream.videoProducerId = producer.producerId;
+          }
+        });
+
+        // Process audio producers
+        data.audio.forEach((producer: Producer) => {
+          if (!streamsMap.has(producer.socketId)) {
+            streamsMap.set(producer.socketId, {
+              socketId: producer.socketId,
+              name: producer.name,
+              category: producer.category,
+              videoProducerId: "",
+              audioProducerId: producer.producerId,
+            });
+          } else {
+            const stream = streamsMap.get(producer.socketId)!;
+            stream.audioProducerId = producer.producerId;
+          }
+        });
+
+        // Convert map to array and filter streams that have both video and audio
+        const streams = Array.from(streamsMap.values()).filter(
+          (stream) => stream.videoProducerId && stream.audioProducerId
+        );
+
+        setStreamsList(streams);
+        console.log("Processed streams:", streams);
       } catch (err) {
         console.error("Error fetching producers:", err);
       }
     };
 
     fetchData();
+
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, [isMounted]);
 
- 
   if (!isMounted) return null;
 
   const categories = [
@@ -38,20 +99,19 @@ export default function Mainpage() {
   ];
 
   return (
-    <div className="min-h-screen p-5 space-y-12">
-    
+    <div className="min-h-screen p-5 space-y-12  w-full">
       <section>
         <h1 className="text-white font-bold text-3xl mb-6">Live Channels</h1>
 
-        {producersList.length === 0 ? (
+        {streamsList.length === 0 ? (
           <p className="text-gray-400">No live streams currently.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {producersList.map((producer) => (
+          <div className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3  lg:grid-cols-4 gap-10 ">
+            {streamsList.map((stream) => (
               <Link
-                key={producer.id}
-                href={`/${producer.id}`}
-                className="group relative overflow-hidden rounded-2xl hover:scale-[1.03] transition-transform shadow-lg"
+                key={stream.socketId}
+                href={`/${stream.socketId}`}
+                className="relative rounded-2xl shadow-lg"
               >
                 <StreamThum />
               </Link>
@@ -77,9 +137,7 @@ export default function Mainpage() {
                 className="w-full h-40 object-cover transition-transform duration-300 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-3">
-                <h3 className="text-white font-semibold text-lg">
-                  {cat.name}
-                </h3>
+                <h3 className="text-white font-semibold text-lg">{cat.name}</h3>
               </div>
             </Link>
           ))}

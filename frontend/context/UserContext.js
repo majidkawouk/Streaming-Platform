@@ -43,19 +43,28 @@ export const UserProvider = ({ children }) => {
     if (res.ok) {
       setToken(data.token);
       localStorage.setItem("token", data.token);
-      await fetchProfile(data.token);
-      if (onLoginSuccess) {
-        onLoginSuccess("Login successful");
-      }
+
+      setUser(data.user);
+
+      fetchProfile(data.token);
+
+      if (onLoginSuccess) onLoginSuccess("Login successful");
     } else {
       errorMessage = data.message || "Login failed";
     }
+
     if (errorMessage && onLoginError) {
       onLoginError(errorMessage);
     }
   };
 
-  const register = async (username, email, password, registererror,onRegisterSuccess) => {
+  const register = async (
+    username,
+    email,
+    password,
+    registererror,
+    onRegisterSuccess
+  ) => {
     const res = await fetch("http://localhost:3000/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,16 +72,19 @@ export const UserProvider = ({ children }) => {
     });
     const data = await res.json();
     let errorMessage = null;
+
     if (res.ok) {
       setToken(data.token);
       localStorage.setItem("token", data.token);
-      await fetchProfile(data.token);
-      if (onRegisterSuccess) {
-        onRegisterSuccess("Registration successful");
-      }
+      setUser(data.user);
+
+      fetchProfile(data.token);
+
+      if (onRegisterSuccess) onRegisterSuccess("Registration successful");
     } else {
       errorMessage = data.message || "Registration failed";
     }
+
     if (errorMessage && registererror) {
       registererror(errorMessage);
     }
