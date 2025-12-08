@@ -11,13 +11,21 @@ import {
   HiSpeakerWave,
   HiCog6Tooth,
 } from "react-icons/hi2";
+import { useUser } from "@/context/UserContext";
+import { RiFullscreenExitFill } from "react-icons/ri";
 
 export default function Viewer({ params }: { params: { viewer: string } }) {
-  const { viewer } = params;
+  const viewerId = params.viewer;
+
+  const user = useUser();
+  console.log("Current user in Viewer:", user);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [videoProducerId, setVideoProducerId] = useState<string | null>(null);
+  const [audioProducerId, setAudioProducerId] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting...");
   const [messages, setMessages] = useState<{ user: string; text: string }[]>(
     []
@@ -25,27 +33,80 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
   const [input, setInput] = useState("");
   const [socketId, setSocketId] = useState<string | null>(null);
   const [muted, setMuted] = useState(true);
+  const hasInteractedRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  useEffect(() => setIsMounted(true), []);
+  useEffect(() => {
+    const fetchProducers = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/producers");
+        const data = await res.json();
+        console.log("All Producers:", data);
+
+        const videoProducer = data.video.find(
+          (v: any) => v.socketId === viewerId
+        );
+        const audioProducer = data.audio.find(
+          (a: any) => a.socketId === viewerId
+        );
+
+        if (videoProducer) {
+          setVideoProducerId(videoProducer.producerId);
+          console.log("Video Producer ID:", videoProducer.producerId);
+        } else {
+          console.warn("No video producer found for socket:", viewerId);
+          setStatus("No video stream available");
+        }
+
+        if (audioProducer) {
+          setAudioProducerId(audioProducer.producerId);
+          console.log("Audio Producer ID:", audioProducer.producerId);
+        } else {
+          console.warn("No audio producer found for socket:", viewerId);
+        }
+      } catch (err) {
+        console.error("Failed to fetch producers:", err);
+        setStatus("Failed to load stream");
+      }
+    };
+    fetchProducers();
+  }, [viewerId]);
 
   useEffect(() => {
-    if (!isMounted) return;
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted || !videoProducerId || !audioProducerId) return;
 
     const startStream = async () => {
       try {
         const socket = io("http://localhost:3000");
         socketRef.current = socket;
 
-        socket.on("connect", () => setSocketId(socket.id ?? null));
+        socket.on("connect", () => {
+          const mySocketId = socket.id;
+          setSocketId(mySocketId ?? null);
+
+          console.log("=== VIEWER DEBUG ===");
+          console.log("My socket ID:", mySocketId);
+          console.log("Broadcaster socket ID (viewerId):", viewerId);
+          console.log("Joining room:", `stream-${viewerId}`);
+
+          socket.emit("joinRoom", { streamerSocketId: viewerId });
+          console.log(`Joined room for streamer: ${viewerId}`);
+        });
 
         socket.on(
           "chat-message",
-          (msg: { user: string; text: string; producerId: string }) => {
-            if (msg.producerId === viewer) {
-              setMessages((prev) => [...prev, msg]);
-            }
+          (msg: { socketId: string; text: string; user: string }) => {
+            if (msg.socketId === socketRef.current?.id) return;
+            setMessages((prev) => [
+              ...prev,
+              { user: msg.user, text: msg.text },
+            ]);
           }
         );
 
@@ -69,33 +130,92 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
               callback();
             });
 
-            socket.emit(
-              "consume",
-              { producerId: viewer, rtpCapabilities: device.rtpCapabilities },
-              async (data: any) => {
-                if (data.error) return setStatus("Cannot consume stream");
+            const stream = new MediaStream();
+            mediaStreamRef.current = stream;
 
-                const consumer = await recvTransport.consume(data);
-                const stream = new MediaStream();
-                stream.addTrack(consumer.track);
+            const consumePromises: Promise<void>[] = [];
 
+            const videoPromise = new Promise<void>((resolve, reject) => {
+              socket.emit(
+                "consume",
+                {
+                  producerId: videoProducerId,
+                  rtpCapabilities: device.rtpCapabilities,
+                },
+                async (data: any) => {
+                  if (data.error) {
+                    console.error("Cannot consume video stream:", data.error);
+                    reject(data.error);
+                    return;
+                  }
+
+                  try {
+                    const consumer = await recvTransport.consume(data);
+                    stream.addTrack(consumer.track);
+                    console.log("Video track added to stream");
+                    resolve();
+                  } catch (err) {
+                    reject(err);
+                  }
+                }
+              );
+            });
+            consumePromises.push(videoPromise);
+
+            const audioPromise = new Promise<void>((resolve, reject) => {
+              socket.emit(
+                "consume",
+                {
+                  producerId: audioProducerId,
+                  rtpCapabilities: device.rtpCapabilities,
+                },
+                async (data: any) => {
+                  if (data.error) {
+                    console.error("Cannot consume audio stream:", data.error);
+                    reject(data.error);
+                    return;
+                  }
+
+                  try {
+                    const consumer = await recvTransport.consume(data);
+                    stream.addTrack(consumer.track);
+                    console.log("Audio track added to stream");
+                    resolve();
+                  } catch (err) {
+                    reject(err);
+                  }
+                }
+              );
+            });
+            consumePromises.push(audioPromise);
+
+            Promise.all(consumePromises)
+              .then(async () => {
+                console.log("Both tracks ready, starting playback");
                 if (videoRef.current) {
                   videoRef.current.srcObject = stream;
+                  videoRef.current.muted = true;
+
                   try {
                     await videoRef.current.play();
                     setIsPlaying(true);
-                  } catch {
+                    setStatus("LIVE");
+                    console.log("Stream playing successfully");
+                  } catch (err) {
+                    console.error("Error playing stream:", err);
                     setIsPlaying(false);
+                    setStatus("Click to play");
                   }
                 }
-
-                setStatus("LIVE");
-              }
-            );
+              })
+              .catch((err) => {
+                console.error("Error consuming tracks:", err);
+                setStatus("Failed to load stream");
+              });
           }
         );
       } catch (err) {
-        console.error(err);
+        console.error("Stream error:", err);
         setStatus("Failed to connect");
       }
     };
@@ -106,15 +226,18 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
     };
-  }, [isMounted, viewer]);
+  }, [isMounted, videoProducerId, audioProducerId, viewerId]);
 
   const sendMessage = () => {
     if (!input.trim() || !socketRef.current) return;
     socketRef.current.emit("chat-message", {
-      user: socketRef.current.id,
+      streamerSocketId: viewerId,
       text: input,
-      producerId: viewer,
+      user: user.user?.username || "Guest",
     });
     setMessages((prev) => [...prev, { user: "You", text: input }]);
     setInput("");
@@ -153,34 +276,60 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
               ref={videoRef}
               playsInline
               autoPlay
-              muted={muted}
+              muted
               className="w-full h-full object-contain"
             />
 
             <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white text-sm px-3 py-1 rounded-full font-semibold shadow-lg">
               <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              LIVE
+              {status}
             </div>
+
+            {muted && status === "LIVE" && (
+              <div className="absolute top-16 left-4 flex items-center gap-2 bg-yellow-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-lg animate-pulse">
+                <HiMiniSpeakerXMark className="w-4 h-4" />
+                Click speaker icon to unmute
+              </div>
+            )}
 
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 px-5 py-3 flex justify-between items-center">
               <HiCog6Tooth className="w-6 h-6 cursor-pointer hover:text-gray-300" />
 
               <div className="flex items-center gap-3">
-                <SlFrame
-                  className="w-6 h-6 cursor-pointer hover:text-gray-300"
-                  onClick={toggleFullscreen}
-                  title="Fullscreen"
-                />
+                {isFullscreen ? (
+                  <RiFullscreenExitFill
+                    className="w-6 h-6 cursor-pointer hover:text-gray-300"
+                    onClick={toggleFullscreen}
+                    title="Fullscreen"
+                  />
+                ) : (
+                  <SlFrame
+                    className="w-6 h-6 cursor-pointer hover:text-gray-300"
+                    onClick={toggleFullscreen}
+                    title="Fullscreen"
+                  />
+                )}
 
                 {muted ? (
                   <HiMiniSpeakerXMark
                     className="w-6 h-6 cursor-pointer hover:text-gray-300"
-                    onClick={() => setMuted(false)}
+                    onClick={() => {
+                      setMuted(false);
+                      hasInteractedRef.current = true;
+                      if (videoRef.current) {
+                        videoRef.current.muted = false;
+                      }
+                    }}
                   />
                 ) : (
                   <HiSpeakerWave
                     className="w-6 h-6 cursor-pointer hover:text-gray-300"
-                    onClick={() => setMuted(true)}
+                    onClick={() => {
+                      setMuted(true);
+                      if (videoRef.current) {
+                        videoRef.current.muted = true;
+                      }
+                    }}
                   />
                 )}
 
@@ -211,11 +360,11 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
                 <FaCrown />
               </div>
               <div>
-                <h2 className="font-semibold text-lg">Streamer_{viewer}</h2>
+                <h2 className="font-semibold text-lg">Streamer_{viewerId}</h2>
                 <p className="text-sm text-gray-400">Streaming now</p>
               </div>
             </div>
-          <button className="px-4 py-2 bg-cyan-600 rounded-lg font-semibold hover:bg-cyan-700 transition text-sm">
+            <button className="px-4 py-2 bg-cyan-600 rounded-lg font-semibold hover:bg-cyan-700 transition text-sm">
               Follow
             </button>
           </div>

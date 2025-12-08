@@ -4,8 +4,10 @@ import { io, Socket } from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
 import * as LucideIcons from "lucide-react";
 import { useUser } from "@/context/UserContext";
+import { CiVideoOff } from "react-icons/ci";
+
 export default function Broadcaster() {
-  const {user} = useUser()
+  const { user } = useUser();
   const videoRef = useRef<HTMLVideoElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -23,6 +25,8 @@ export default function Broadcaster() {
   const [isMounted, setIsMounted] = useState(false);
   const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null);
   const [audioTrack, setAudioTrack] = useState<MediaStreamTrack | null>(null);
+  const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
+  const [isVideoDisabled, setIsVideoDisabled] = useState<boolean>(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -44,13 +48,18 @@ export default function Broadcaster() {
   useEffect(() => {
     if (!started || !socketRef.current) return;
     const socket = socketRef.current;
-    const onMessage = (msg: any) => {
-  if (msg.user === socketRef.current?.id) return;
-  setMessages((prev) => [...prev, msg]);
-};
 
-  
+    const onMessage = (msg: {
+      socketId: string;
+      text: string;
+      user: string;
+    }) => {
+      if (msg.socketId === socket.id) return;
+      setMessages((prev) => [...prev, { user: msg.user, text: msg.text }]);
+    };
+
     socket.on("chat-message", onMessage);
+
     return () => {
       socket.off("chat-message", onMessage);
     };
@@ -58,8 +67,20 @@ export default function Broadcaster() {
 
   const startBroadcast = async () => {
     try {
+      setStatus("Connecting...");
+
       const socket = io("http://localhost:3000");
       socketRef.current = socket;
+      await new Promise<void>((resolve) => {
+        socket.on("connect", () => {
+          console.log("Connected with socket ID:", socket.id);
+
+          socket.emit("createroom", { streamerSocketId: socket.id });
+          console.log("Created and joined room:", socket.id);
+
+          resolve();
+        });
+      });
 
       const res = await fetch("http://localhost:3000/rtpCapabilities");
       const rtpCapabilities = await res.json();
@@ -80,7 +101,12 @@ export default function Broadcaster() {
           async ({ kind, rtpParameters }, callback) => {
             socket.emit(
               "produce",
-              { kind, rtpParameters, name:user?.username || "guest" , category: selectedCategory },
+              {
+                kind,
+                rtpParameters,
+                name: user?.username || "guest",
+                category: selectedCategory,
+              },
               ({ id }) => callback({ id })
             );
           }
@@ -105,52 +131,59 @@ export default function Broadcaster() {
         await sendTransport.produce({ track: videoTrack, kind: "video" });
         await sendTransport.produce({ track: audioTrack, kind: "audio" });
 
-        setStatus("live");
+        setStatus("LIVE");
         setStarted(true);
       });
     } catch (err) {
       console.error("Broadcast error:", err);
-      setStatus("Error live");
+      setStatus("Error starting live");
     }
   };
 
   const endStream = () => {
-    if (socketRef.current) socketRef.current.disconnect();
-    setStarted(false);
-    setStatus("click to start the live");
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream)
-        .getTracks()
-        .forEach((t) => t.stop());
-      videoRef.current.srcObject = null;
-    }
-  };
+  if (socketRef.current) socketRef.current.disconnect();
+  setStarted(false);
+  setStatus("Click to go live");
+  setMessages([]);
+  setIsMicMuted(false);
+  setIsVideoDisabled(false);
+  if (videoRef.current?.srcObject) {
+    (videoRef.current.srcObject as MediaStream)
+      .getTracks()
+      .forEach((t) => t.stop());
+    videoRef.current.srcObject = null;
+  }
+};
 
+ const toggleMuteMic = () => {
+  if (audioTrack) {
+    audioTrack.enabled = !audioTrack.enabled;
+    setIsMicMuted(!audioTrack.enabled);
+  }
+};
 
+const toggleVideo = () => {
+  if (videoTrack) {
+    videoTrack.enabled = !videoTrack.enabled;
+    setIsVideoDisabled(!videoTrack.enabled);
+  }
+};
 
-
-
-
-  const toggleMuteMic = () => {
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-    }
-  };
-
-  const toggleVideo = () => {
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-    }
-  };
-  
   if (!isMounted) return null;
 
   return (
     <div className="min-h-screen bg-[#0a0a0e] text-white p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
       <div className="lg:col-span-2 space-y-6">
         <header className="flex justify-between items-center pb-4 border-b border-[#181822]">
-          <h2 className="text-3xl font-bold">Stream Control Panel</h2>
+          <div>
+            <h2 className="text-3xl font-bold">Stream Control Panel</h2>
+            {started && socketRef.current && (
+              <p className="text-sm text-gray-400 mt-1">
+                Stream URL:{" "}
+                <span className="text-cyan-400">/{socketRef.current.id}</span>
+              </p>
+            )}
+          </div>
           {started ? (
             <button
               onClick={endStream}
@@ -168,9 +201,18 @@ export default function Broadcaster() {
           )}
         </header>
 
-  
         <div className="bg-[#181822] rounded-xl overflow-hidden shadow-2xl aspect-video relative">
-          <video ref={videoRef} playsInline className="w-full h-full object-cover" />
+          <video
+            ref={videoRef}
+            playsInline
+            className="w-full h-full object-cover"
+          />
+          {started && (
+            <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full font-semibold text-sm flex items-center gap-2">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              {status}
+            </div>
+          )}
           {!started && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 p-4">
               <LucideIcons.VideoOff className="w-12 h-12 text-gray-500 mb-4" />
@@ -179,7 +221,7 @@ export default function Broadcaster() {
           )}
         </div>
 
-            <div className="bg-[#181822] p-4 rounded-xl shadow-xl space-y-3">
+        <div className="bg-[#181822] p-4 rounded-xl shadow-xl space-y-3">
           <h3 className="text-xl font-semibold">Stream Information</h3>
           <input
             type="text"
@@ -187,13 +229,17 @@ export default function Broadcaster() {
             onChange={(e) => setStreamTitle(e.target.value)}
             className="w-full px-3 py-2 bg-[#28283d] border border-[#35354a] rounded-lg text-white outline-none focus:ring-1 focus:ring-cyan-500"
             placeholder="Stream title..."
+            disabled={started}
           />
           <div className="flex flex-col relative mt-3">
-            <label className="text-sm font-medium text-gray-400 mb-1">Category</label>
+            <label className="text-sm font-medium text-gray-400 mb-1">
+              Category
+            </label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="w-full px-3 py-2 bg-[#28283d] border border-[#35354a] rounded-lg text-white appearance-none focus:ring-1 focus:ring-cyan-500"
+              disabled={started}
             >
               {categories.map((c) => (
                 <option key={c} value={c}>
@@ -204,16 +250,18 @@ export default function Broadcaster() {
           </div>
         </div>
 
-     
         <div className="bg-[#181822] p-4 rounded-xl shadow-xl space-y-3">
           <h3 className="text-xl font-semibold">Audio & Video</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col relative">
-              <label className="text-sm font-medium text-gray-400 mb-1">Microphone</label>
+              <label className="text-sm font-medium text-gray-400 mb-1">
+                Microphone
+              </label>
               <select
                 value={selectedMic}
                 onChange={(e) => setSelectedMic(e.target.value)}
                 className="w-full px-3 py-2 bg-[#28283d] border border-[#35354a] rounded-lg text-white"
+                disabled={started}
               >
                 {microphones.map((m) => (
                   <option key={m.deviceId} value={m.deviceId}>
@@ -223,11 +271,14 @@ export default function Broadcaster() {
               </select>
             </div>
             <div className="flex flex-col relative">
-              <label className="text-sm font-medium text-gray-400 mb-1">Camera</label>
+              <label className="text-sm font-medium text-gray-400 mb-1">
+                Camera
+              </label>
               <select
                 value={selectedCam}
                 onChange={(e) => setSelectedCam(e.target.value)}
                 className="w-full px-3 py-2 bg-[#28283d] border border-[#35354a] rounded-lg text-white"
+                disabled={started}
               >
                 {cameras.map((c) => (
                   <option key={c.deviceId} value={c.deviceId}>
@@ -241,50 +292,62 @@ export default function Broadcaster() {
       </div>
 
       <div className="lg:col-span-1 flex flex-col space-y-6">
- 
+        <div className="bg-[#181822] p-4 rounded-xl shadow-xl flex flex-col h-[450px]">
+          <h3 className="text-xl font-semibold mb-3">Live Chat</h3>
 
-<div className="bg-[#181822] p-4 rounded-xl shadow-xl flex flex-col h-[450px]">
-  <h3 className="text-xl font-semibold mb-3">Live Chat</h3>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {messages.length === 0 ? (
+              <p className="text-gray-400 text-sm italic">No messages yet...</p>
+            ) : (
+              messages.map((msg, i) => (
+                <div key={i} className="text-sm">
+                  <span className="font-semibold text-cyan-400 mr-2">
+                    {msg.user}:
+                  </span>
+                  <span className="text-gray-300">{msg.text}</span>
+                </div>
+              ))
+            )}
+          </div>
 
-
-  <div className="flex-1 overflow-y-auto space-y-2">
-    {messages.length === 0 ? (
-      <p className="text-gray-400 text-sm italic">No messages yet...</p>
-    ) : (
-      messages.map((msg, i) => (
-        <div key={i} className="text-sm">
-          <span className="font-semibold text-cyan-400 mr-2">{msg.user}:</span>
-          <span className="text-gray-300">{msg.text}</span>
+          <div className="pt-3 border-t border-[#35354a] text-gray-500 text-sm text-center">
+            {started
+              ? "You are live — viewers can chat here."
+              : "Go live to see chat messages"}
+          </div>
         </div>
-      ))
-    )}
-  </div>
-
-
-  <div className="pt-3 border-t border-[#35354a] text-gray-500 text-sm text-center">
-    You are live — viewers can chat here.
-  </div>
-</div>
         <div className="bg-[#181822] p-4 rounded-xl shadow-xl">
           <h3 className="text-xl font-semibold mb-3">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={toggleMuteMic}
-              className="flex flex-col items-center justify-center p-4 bg-[#28283d] rounded-xl hover:bg-[#35354a] transition"
+              disabled={!started}
+              className="flex flex-col items-center justify-center p-4 bg-[#28283d] rounded-xl hover:bg-[#35354a] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <LucideIcons.VolumeX className="w-6 h-6 mb-1 text-cyan-400" />
-              <span className="text-gray-300 text-sm">Mute Mic</span>
+              {!isMicMuted ? (
+                <LucideIcons.Mic className="w-6 h-6 mb-1 text-cyan-400" />
+              ) : (
+                <LucideIcons.MicOff className="w-6 h-6 mb-1 text-red-400" />
+              )}
+              <span className="text-gray-300 text-sm">
+                {!isMicMuted ? "Mute" : "Unmute"}
+              </span>
             </button>
 
             <button
               onClick={toggleVideo}
-              className="flex flex-col items-center justify-center p-4 bg-[#28283d] rounded-xl hover:bg-[#35354a] transition"
+              disabled={!started}
+              className="flex flex-col items-center justify-center p-4 bg-[#28283d] rounded-xl hover:bg-[#35354a] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <LucideIcons.VideoOff className="w-6 h-6 mb-1 text-cyan-400" />
-              <span className="text-gray-300 text-sm">Disable Cam</span>
+              {!isVideoDisabled ? (
+                <LucideIcons.Video className="w-6 h-6 mb-1 text-cyan-400" />
+              ) : (
+                <CiVideoOff className="w-6 h-6 mb-1 text-red-400" />
+              )}
+              <span className="text-gray-300 text-sm">
+                {!isVideoDisabled ? "Disable" : "Enable"}
+              </span>
             </button>
-
-           
           </div>
         </div>
       </div>
