@@ -31,6 +31,7 @@ export const UserProvider = ({ children }) => {
       console.error(err);
     }
   };
+
   const login = async (email, password, onLoginError, onLoginSuccess) => {
     const res = await fetch("http://localhost:3000/auth/login", {
       method: "POST",
@@ -43,9 +44,7 @@ export const UserProvider = ({ children }) => {
     if (res.ok) {
       setToken(data.token);
       localStorage.setItem("token", data.token);
-
       setUser(data.user);
-
       fetchProfile(data.token);
 
       if (onLoginSuccess) onLoginSuccess("Login successful");
@@ -77,7 +76,6 @@ export const UserProvider = ({ children }) => {
       setToken(data.token);
       localStorage.setItem("token", data.token);
       setUser(data.user);
-
       fetchProfile(data.token);
 
       if (onRegisterSuccess) onRegisterSuccess("Registration successful");
@@ -96,8 +94,49 @@ export const UserProvider = ({ children }) => {
     localStorage.removeItem("token");
   };
 
+  const CreateStream = async (title, category, description, userId) => {
+    try {
+      const res = await fetch("http://localhost:3000/streams/", {
+
+        method: "POST",
+        headers: { "Content-Type": "application/json" , Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title, category, userId, description }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create stream");
+      }
+
+      return await res.json();
+    } catch (error) {
+      console.error("Error creating stream:", error);
+      throw error;
+    }
+  };
+
+  const EndStream = async (userId) => {
+    try {
+      const res = await fetch("http://localhost:3000/streams/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to end stream");
+      }
+
+      return await res.json();
+    } catch (error) {
+      console.error("Error ending stream:", error);
+      throw error;
+    }
+  };
+
   return (
-    <UserContext.Provider value={{ user, token, login, register, logout }}>
+    <UserContext.Provider
+      value={{ user, token, CreateStream, EndStream, login, register, logout }}
+    >
       {children}
     </UserContext.Provider>
   );

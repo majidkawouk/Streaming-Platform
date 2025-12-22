@@ -43,7 +43,11 @@ async function createWorker() {
         kind: "video",
         mimeType: "video/VP8",
         clockRate: 90000,
-        parameters: {},
+        parameters: {
+    "x-google-start-bitrate": 4000, 
+    "x-google-max-bitrate": 8000,
+    "x-google-min-bitrate": 3000,
+  },
       },
     ],
   });
