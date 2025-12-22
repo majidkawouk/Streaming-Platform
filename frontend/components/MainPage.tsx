@@ -38,7 +38,7 @@ export default function Mainpage() {
 
         const streamsMap = new Map<string, StreamData>();
 
-        // Process video producers
+       
         data.video.forEach((producer: Producer) => {
           if (!streamsMap.has(producer.socketId)) {
             streamsMap.set(producer.socketId, {

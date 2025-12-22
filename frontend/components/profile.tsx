@@ -56,7 +56,6 @@ export default function Profile() {
     fetchData();
   }, [userId]);
 
-  // Check follow status
   useEffect(() => {
     if (!token || !userId) return;
 
@@ -96,7 +95,6 @@ export default function Profile() {
       if (res.ok) {
         setIsFollowing((prev) => !prev);
 
-        // update followers count locally
         setProfileUser((p) =>
           p
             ? {
@@ -115,9 +113,7 @@ export default function Profile() {
     }
   };
 
-  // ---------------------------------------------------
-  // UI
-  // ---------------------------------------------------
+
 
   if (loading) {
     return (
@@ -144,27 +140,23 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[#0a0a0e] text-white">
 
-      {/* Header Cover */}
+
       <div className="bg-gradient-to-r from-cyan-600 to-cyan-400 h-48 relative">
         <div className="absolute inset-0 bg-black/20"></div>
       </div>
 
-      {/* Profile Card */}
       <div className="max-w-6xl mx-auto px-4 pb-12">
         <div className="bg-[#181822] rounded-xl shadow-2xl p-8 -mt-24 relative z-10 mb-8">
 
           <div className="flex flex-col md:flex-row gap-8 items-start md:items-end">
-            {/* Avatar */}
             <div className="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center border-4 border-[#28283d] shadow-lg">
               <LucideIcons.User className="w-16 h-16 text-white" />
             </div>
 
-            {/* Info */}
             <div className="flex-1">
               <h1 className="text-4xl font-bold">{profileUser.username}</h1>
               <p className="text-gray-400 mb-4">@{profileUser.username.toLowerCase()}</p>
 
-              {/* Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {[
                   { label: "Followers", value: profileUser.followers || 0 },
@@ -223,7 +215,6 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="border-b border-[#35354a] mb-8 flex gap-8">
           <button
             onClick={() => setActiveTab("streams")}
@@ -254,7 +245,6 @@ export default function Profile() {
           </button>
         </div>
 
-        {/* STREAMS TAB */}
         {activeTab === "streams" && (
           <div>
             {streams.length > 0 ? (
@@ -304,7 +294,6 @@ export default function Profile() {
           </div>
         )}
 
-        {/* ABOUT TAB */}
         {activeTab === "about" && (
           <div className="bg-[#181822] p-8 rounded-xl border border-[#35354a]">
             <h2 className="text-2xl font-bold mb-6">

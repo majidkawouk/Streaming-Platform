@@ -14,11 +14,22 @@ import {
 import { useUser } from "@/context/UserContext";
 import { RiFullscreenExitFill } from "react-icons/ri";
 
+interface StreamData {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  is_live: boolean;
+  user: {
+    id: string;
+    username: string;
+  };
+}
+
 export default function Viewer({ params }: { params: { viewer: string } }) {
   const viewerId = params.viewer;
 
   const user = useUser();
-  console.log("Current user in Viewer:", user);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -36,6 +47,27 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
   const hasInteractedRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [streamData, setStreamData] = useState<StreamData | null>(null);
+
+  useEffect(() => {
+    const fetchStreamData = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/streams");
+        const streams = await res.json();
+                const currentStream = streams.find(
+          (s: StreamData) => s.is_live && s.user.id
+        );
+        
+        if (currentStream) {
+          setStreamData(currentStream);
+        }
+      } catch (err) {
+        console.error("Failed to fetch stream data:", err);
+      }
+    };
+    
+    fetchStreamData();
+  }, [viewerId]);
 
   useEffect(() => {
     const fetchProducers = async () => {
@@ -90,13 +122,7 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
           const mySocketId = socket.id;
           setSocketId(mySocketId ?? null);
 
-          console.log("=== VIEWER DEBUG ===");
-          console.log("My socket ID:", mySocketId);
-          console.log("Broadcaster socket ID (viewerId):", viewerId);
-          console.log("Joining room:", `stream-${viewerId}`);
-
           socket.emit("joinRoom", { streamerSocketId: viewerId });
-          console.log(`Joined room for streamer: ${viewerId}`);
         });
 
         socket.on(
@@ -353,20 +379,44 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
               </div>
             </div>
           </div>
-
-          <div className="flex justify-between items-center mt-3 px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                <FaCrown />
+          <div className="mt-4 px-2 space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <FaCrown className="text-xl" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="font-semibold text-xl">
+                    {streamData?.user?.username || `Streamer_${viewerId.slice(0, 6)}`}
+                  </h2>
+                  <p className="text-sm text-gray-400">
+                    {streamData?.category || "Live"} • Streaming now
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-semibold text-lg">Streamer_{viewerId}</h2>
-                <p className="text-sm text-gray-400">Streaming now</p>
-              </div>
+              <button className="px-5 py-2 bg-cyan-600 rounded-lg font-semibold hover:bg-cyan-700 transition text-sm">
+                Follow
+              </button>
             </div>
-            <button className="px-4 py-2 bg-cyan-600 rounded-lg font-semibold hover:bg-cyan-700 transition text-sm">
-              Follow
-            </button>
+
+            {streamData?.title && (
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  {streamData.title}
+                </h1>
+              </div>
+            )}
+
+            {streamData?.description && (
+              <div className="bg-[#18181b] rounded-lg p-4 border border-[#202024]">
+                <h3 className="text-sm font-semibold text-gray-400 mb-2">
+                  About this stream
+                </h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {streamData.description}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
