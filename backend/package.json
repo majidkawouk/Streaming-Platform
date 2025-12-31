@@ -8,12 +8,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-     "dev": "nodemon index.js",
-  "start": "node index.js",
-
-  "typeorm": "typeorm",
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "typeorm": "typeorm",
     "typeorm:generate": "typeorm migration:generate -d ./config/data-source.js ./migrations/AutoMigration",
-  "typeorm:run": "typeorm migration:run -d ./config/data-source.js"
+    "typeorm:run": "typeorm migration:run -d ./config/data-source.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -24,6 +23,7 @@
     "mediasoup": "^3.19.3",
     "mysql2": "^3.15.3",
     "nodemon": "^3.1.10",
+    "redis": "^5.10.0",
     "reflect-metadata": "^0.2.2",
     "socket.io": "^4.8.1",
     "typeorm": "^0.3.27",

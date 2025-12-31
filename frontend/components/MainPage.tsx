@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import StreamThum from "@/components/StreamThum";
+import Image from "next/image";
 
 interface Producer {
   producerId: string;
@@ -11,12 +12,34 @@ interface Producer {
   category: string;
 }
 
+interface Stream {
+  id: number;
+  title: string;
+  category: string;
+  thumbnail_url: string | null;
+  is_live: boolean;
+  stream_key: string;
+  started_at: string;
+  ended_at: string | null;
+  description: string;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    password: string;
+    created_at: string;
+  };
+}
+
 interface StreamData {
   socketId: string;
   name: string;
   category: string;
   videoProducerId: string;
   audioProducerId: string;
+  title: string;
+  description: string;
+  username: string;
 }
 
 export default function Mainpage() {
@@ -32,21 +55,36 @@ export default function Mainpage() {
 
     const fetchData = async () => {
       try {
-        const res = await fetch("http://localhost:3000/producers");
-        const data = await res.json();
-        console.log("Fetched producers:", data);
+        const producersRes = await fetch("http://localhost:3000/producers");
+        const producers = await producersRes.json();
+
+        const streamsRes = await fetch("http://localhost:3000/streams");
+        const streams: Stream[] = await streamsRes.json();
+
+        const streamsDataMap = new Map<string, Stream>();
+        streams.forEach((stream) => {
+          if (stream.is_live) {
+            streamsDataMap.set(stream.stream_key, stream);
+          }
+        });
 
         const streamsMap = new Map<string, StreamData>();
 
-       
-        data.video.forEach((producer: Producer) => {
+        producers.video.forEach((producer: Producer) => {
+          const streamData =
+            streamsDataMap.get(producer.socketId) ||
+            streams.find((s: Stream) => s.is_live);
+
           if (!streamsMap.has(producer.socketId)) {
             streamsMap.set(producer.socketId, {
               socketId: producer.socketId,
               name: producer.name,
-              category: producer.category,
+              category: streamData?.category || producer.category,
               videoProducerId: producer.producerId,
               audioProducerId: "",
+              title: streamData?.title || "",
+              description: streamData?.description || "",
+              username: streamData?.user.username || "",
             });
           } else {
             const stream = streamsMap.get(producer.socketId)!;
@@ -54,15 +92,21 @@ export default function Mainpage() {
           }
         });
 
-        // Process audio producers
-        data.audio.forEach((producer: Producer) => {
+        producers.audio.forEach((producer: Producer) => {
+          const streamData =
+            streamsDataMap.get(producer.socketId) ||
+            streams.find((s: Stream) => s.is_live);
+
           if (!streamsMap.has(producer.socketId)) {
             streamsMap.set(producer.socketId, {
               socketId: producer.socketId,
               name: producer.name,
-              category: producer.category,
+              category: streamData?.category || producer.category,
               videoProducerId: "",
               audioProducerId: producer.producerId,
+              title: streamData?.title || "",
+              description: streamData?.description || "",
+              username: streamData?.user.username || "",
             });
           } else {
             const stream = streamsMap.get(producer.socketId)!;
@@ -70,20 +114,17 @@ export default function Mainpage() {
           }
         });
 
-        // Convert map to array and filter streams that have both video and audio
-        const streams = Array.from(streamsMap.values()).filter(
-          (stream) => stream.videoProducerId && stream.audioProducerId
+        const streamsList = Array.from(streamsMap.values()).filter(
+          (s) => s.videoProducerId && s.audioProducerId
         );
 
-        setStreamsList(streams);
-        console.log("Processed streams:", streams);
+        setStreamsList(streamsList);
       } catch (err) {
-        console.error("Error fetching producers:", err);
+        console.error("Error fetching streams:", err);
       }
     };
 
     fetchData();
-
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [isMounted]);
@@ -99,21 +140,24 @@ export default function Mainpage() {
   ];
 
   return (
-    <div className="min-h-screen p-5 space-y-12  w-full">
+    <div className="min-h-screen p-5 space-y-12 w-full">
       <section>
         <h1 className="text-white font-bold text-3xl mb-6">Live Channels</h1>
 
         {streamsList.length === 0 ? (
           <p className="text-gray-400">No live streams currently.</p>
         ) : (
-          <div className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3  lg:grid-cols-4 gap-10 ">
+          <div className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
             {streamsList.map((stream) => (
               <Link
                 key={stream.socketId}
                 href={`/${stream.socketId}`}
                 className="relative rounded-2xl shadow-lg"
               >
-                <StreamThum />
+                <StreamThum
+                  title={stream.title}
+                  channelName={stream.username}
+                />
               </Link>
             ))}
           </div>
@@ -124,6 +168,7 @@ export default function Mainpage() {
         <h1 className="text-white font-bold text-3xl mb-6">
           Browse by Category
         </h1>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
           {categories.map((cat) => (
             <Link
@@ -131,9 +176,11 @@ export default function Mainpage() {
               href={`/category/${cat.name.toLowerCase()}`}
               className="relative group overflow-hidden rounded-2xl shadow-lg"
             >
-              <img
+              <Image
                 src={cat.image}
                 alt={cat.name}
+                width={300}
+                height={300}
                 className="w-full h-40 object-cover transition-transform duration-300 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-3">

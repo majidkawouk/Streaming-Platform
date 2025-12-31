@@ -54,10 +54,10 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
       try {
         const res = await fetch("http://localhost:3000/streams");
         const streams = await res.json();
-                const currentStream = streams.find(
+        const currentStream = streams.find(
           (s: StreamData) => s.is_live && s.user.id
         );
-        
+
         if (currentStream) {
           setStreamData(currentStream);
         }
@@ -65,7 +65,7 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
         console.error("Failed to fetch stream data:", err);
       }
     };
-    
+
     fetchStreamData();
   }, [viewerId]);
 
@@ -123,6 +123,9 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
           setSocketId(mySocketId ?? null);
 
           socket.emit("joinRoom", { streamerSocketId: viewerId });
+        });
+        socket.on("chat-history", (msgs) => {
+          setMessages(msgs);
         });
 
         socket.on(
@@ -387,7 +390,8 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
                 </div>
                 <div className="flex-1">
                   <h2 className="font-semibold text-xl">
-                    {streamData?.user?.username || `Streamer_${viewerId.slice(0, 6)}`}
+                    {streamData?.user?.username ||
+                      `Streamer_${viewerId.slice(0, 6)}`}
                   </h2>
                   <p className="text-sm text-gray-400">
                     {streamData?.category || "Live"} • Streaming now

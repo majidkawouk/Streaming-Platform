@@ -95,43 +95,44 @@ export const UserProvider = ({ children }) => {
   };
 
   const CreateStream = async (title, category, description, userId) => {
-    try {
-      const res = await fetch("http://localhost:3000/streams/", {
+    const token = localStorage.getItem("token");
+    const res = await fetch("http://localhost:3000/streams", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title,
+        category,
+        description,
+        userId,
+      }),
+    });
 
-        method: "POST",
-        headers: { "Content-Type": "application/json" , Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title, category, userId, description }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to create stream");
-      }
-
-      return await res.json();
-    } catch (error) {
-      console.error("Error creating stream:", error);
-      throw error;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || "Create stream failed");
     }
+
+    return res.json();
   };
 
-  const EndStream = async (userId) => {
-    try {
-      const res = await fetch("http://localhost:3000/streams/", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
+  async function EndStream(streamId) {
+    const res = await fetch(`http://localhost:3000/streams/${streamId}/end`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-      if (!res.ok) {
-        throw new Error("Failed to end stream");
-      }
-
-      return await res.json();
-    } catch (error) {
-      console.error("Error ending stream:", error);
-      throw error;
+    if (!res.ok) {
+      throw new Error("End stream failed");
     }
-  };
+
+    return res.json();
+  }
 
   return (
     <UserContext.Provider

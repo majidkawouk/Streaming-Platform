@@ -32,7 +32,8 @@ export default function Broadcaster() {
   const activeStreamsRef = useRef<MediaStream[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mixedDestinationRef = useRef<MediaStream | null>(null);
-
+  const [streamId, setStreamId] = useState<number | null>(null);
+  const streamIdRef = useRef<number | null>(null);
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -200,6 +201,25 @@ export default function Broadcaster() {
     try {
       setStatus("Connecting...");
 
+      if (user?.id) {
+        try {
+          const createdStream = await CreateStream(
+            streamTitle,
+            selectedCategory,
+            streamDescription,
+            user.id
+          );
+          console.log("STREAM ID:", streamIdRef.current);
+
+
+          setStreamId(createdStream.id);
+          streamIdRef.current = createdStream.id;
+        } catch (error) {
+          console.error("Failed to create stream record:", error);
+          return;
+        }
+      }
+
       const socket = io("http://localhost:3000");
       socketRef.current = socket;
 
@@ -234,8 +254,7 @@ export default function Broadcaster() {
             {
               kind,
               rtpParameters,
-              name: user?.username || "guest",
-              category: selectedCategory,
+              streamId: streamIdRef.current,
             },
             ({ id }: any) => callback({ id })
           );
@@ -286,19 +305,6 @@ export default function Broadcaster() {
 
         setStatus("LIVE");
         setStarted(true);
-
-        if (user?.id) {
-          try {
-            await CreateStream(
-              streamTitle,
-              selectedCategory,
-              streamDescription,
-              user.id
-            );
-          } catch (error) {
-            console.error("Failed to create stream record:", error);
-          }
-        }
       });
     } catch (err: any) {
       console.error("Broadcast error:", err);
@@ -317,13 +323,17 @@ export default function Broadcaster() {
     try {
       if (user?.id) {
         try {
-          await EndStream(user.id);
+          if (streamIdRef.current) {
+            await EndStream(streamIdRef.current);
+          }
         } catch (error) {
           console.error("Failed to end stream in backend:", error);
         }
       }
 
       cleanupAll();
+      setStreamId(null);
+      streamIdRef.current = null;
     } catch (e) {}
 
     if (videoRef.current?.srcObject) {
@@ -430,7 +440,7 @@ export default function Broadcaster() {
               <LucideIcons.AlertTriangle className="w-6 h-6 text-white animate-pulse" />
               <div>
                 <p className="font-bold text-white text-lg">
-                  🔴 LIVE STREAM ACTIVE
+                   LIVE STREAM ACTIVE
                 </p>
                 <p className="text-red-100 text-sm mt-1">
                   Do NOT reload this tab.
