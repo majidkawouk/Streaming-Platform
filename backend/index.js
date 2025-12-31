@@ -8,6 +8,26 @@ import { AppDataSource } from "./config/data-source.js";
 import authRoutes from "./routes/auth.routes.js";
 import streamRoutes from "./routes/stream.routes.js";
 import followersRoutes from "./routes/followers.routes.js";
+import { createClient } from "redis";
+
+const redisclient = createClient({
+  url: "redis://127.0.0.1:6379"
+});
+
+redisclient.on("connect", () => {
+  console.log("Redis connected");
+});
+
+redisclient.on("error", (err) => {
+  console.error("Redis error", err);
+});
+
+await redisclient.connect();
+
+
+await redisclient.set("test", "hello");
+console.log(await redisclient.get("test"));
+
 
 const app = express();
 app.use(cors());
@@ -44,10 +64,10 @@ async function createWorker() {
         mimeType: "video/VP8",
         clockRate: 90000,
         parameters: {
-    "x-google-start-bitrate": 4000, 
-    "x-google-max-bitrate": 8000,
-    "x-google-min-bitrate": 3000,
-  },
+          "x-google-start-bitrate": 4000,
+          "x-google-max-bitrate": 8000,
+          "x-google-min-bitrate": 3000,
+        },
       },
     ],
   });
@@ -166,9 +186,16 @@ io.on("connection", (socket) => {
       callback({ error: err.message });
     }
   });
-  socket.on("joinRoom", ({ streamerSocketId }) => {
-    socket.join(`stream-${streamerSocketId}`);
-    console.log(`Socket ${socket.id} joined stream-${streamerSocketId}`); 
+  socket.on("joinRoom", async ({ streamerSocketId }) => {
+    const room = `stream-${streamerSocketId}`;
+    socket.join(room);
+    const key = `chat:room:${streamerSocketId}`;
+    const history = await redisclient.lRange(key, 0, -1);
+    console.log(`Socket ${socket.id} joined ${room}`);
+     socket.emit(
+    "chat-history",
+    history.map(JSON.parse).reverse()
+  );
   });
 
   socket.on("createroom", ({ streamerSocketId }) => {
@@ -176,14 +203,19 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} created stream-${streamerSocketId}`);
   });
 
-socket.on("chat-message", ({ streamerSocketId, text , user }) => {
-  
-  io.to(`stream-${streamerSocketId}`).emit("chat-message", {
+  socket.on("chat-message", async ({ streamerSocketId, text, user }) => {
+  const message = {
+    id: crypto.randomUUID(),
     socketId: socket.id,
+    user,
     text,
-    user
-  });
+    time: Date.now(),
+  };
+  const key = `chat:room:${streamerSocketId}`;
+  await redisclient.lPush(key, JSON.stringify(message));
+  await redisclient.lTrim(key, 0, 99); 
 
+  io.to(`stream-${streamerSocketId}`).emit("chat-message", message);
 });
 
   socket.on("disconnect", () => {
