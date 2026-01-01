@@ -11,7 +11,7 @@ import followersRoutes from "./routes/followers.routes.js";
 import { createClient } from "redis";
 
 const redisclient = createClient({
-  url: "redis://127.0.0.1:6379"
+  url: "redis://127.0.0.1:6379",
 });
 
 redisclient.on("connect", () => {
@@ -24,10 +24,8 @@ redisclient.on("error", (err) => {
 
 await redisclient.connect();
 
-
 await redisclient.set("test", "hello");
 console.log(await redisclient.get("test"));
-
 
 const app = express();
 app.use(cors());
@@ -120,6 +118,8 @@ io.on("connection", (socket) => {
     });
   });
 
+ 
+
   socket.on("connectTransport", async ({ dtlsParameters }) => {
     const t = Object.values(transports).find((t) => t.socketId === socket.id);
     if (t) await t.transport.connect({ dtlsParameters });
@@ -192,10 +192,7 @@ io.on("connection", (socket) => {
     const key = `chat:room:${streamerSocketId}`;
     const history = await redisclient.lRange(key, 0, -1);
     console.log(`Socket ${socket.id} joined ${room}`);
-     socket.emit(
-    "chat-history",
-    history.map(JSON.parse).reverse()
-  );
+    socket.emit("chat-history", history.map(JSON.parse).reverse());
   });
 
   socket.on("createroom", ({ streamerSocketId }) => {
@@ -204,19 +201,19 @@ io.on("connection", (socket) => {
   });
 
   socket.on("chat-message", async ({ streamerSocketId, text, user }) => {
-  const message = {
-    id: crypto.randomUUID(),
-    socketId: socket.id,
-    user,
-    text,
-    time: Date.now(),
-  };
-  const key = `chat:room:${streamerSocketId}`;
-  await redisclient.lPush(key, JSON.stringify(message));
-  await redisclient.lTrim(key, 0, 99); 
+    const message = {
+      id: crypto.randomUUID(),
+      socketId: socket.id,
+      user,
+      text,
+      time: Date.now(),
+    };
+    const key = `chat:room:${streamerSocketId}`;
+    await redisclient.lPush(key, JSON.stringify(message));
+    await redisclient.lTrim(key, 0, 99);
 
-  io.to(`stream-${streamerSocketId}`).emit("chat-message", message);
-});
+    io.to(`stream-${streamerSocketId}`).emit("chat-message", message);
+  });
 
   socket.on("disconnect", () => {
     console.log(" Disconnected:", socket.id);

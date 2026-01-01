@@ -23,7 +23,6 @@ export default function Broadcaster() {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedMic, setSelectedMic] = useState("");
   const [selectedCam, setSelectedCam] = useState("");
-  const [isMounted, setIsMounted] = useState(false);
   const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null);
   const [audioTrack, setAudioTrack] = useState<MediaStreamTrack | null>(null);
   const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
@@ -34,18 +33,23 @@ export default function Broadcaster() {
   const mixedDestinationRef = useRef<MediaStream | null>(null);
   const [streamId, setStreamId] = useState<number | null>(null);
   const streamIdRef = useRef<number | null>(null);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!started) return;
-    const handler = (e: BeforeUnloadEvent) => {
+    const handler = async (e: BeforeUnloadEvent) => {
       e.preventDefault();
+
+      if (streamIdRef.current) {
+        try {
+          await EndStream(streamIdRef.current);
+        } catch (err) {
+          console.error("Failed to end stream on unload", err);
+        }
+      }
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [started]);
+  }, [started, EndStream]);
 
   useEffect(() => {
     async function fetchDevices() {
@@ -201,25 +205,6 @@ export default function Broadcaster() {
     try {
       setStatus("Connecting...");
 
-      if (user?.id) {
-        try {
-          const createdStream = await CreateStream(
-            streamTitle,
-            selectedCategory,
-            streamDescription,
-            user.id
-          );
-          console.log("STREAM ID:", streamIdRef.current);
-
-
-          setStreamId(createdStream.id);
-          streamIdRef.current = createdStream.id;
-        } catch (error) {
-          console.error("Failed to create stream record:", error);
-          return;
-        }
-      }
-
       const socket = io("http://localhost:3000");
       socketRef.current = socket;
 
@@ -230,8 +215,61 @@ export default function Broadcaster() {
         });
       });
 
-      const res = await fetch("http://localhost:3000/rtpCapabilities");
+      if (user?.id) {
+        try {
+          const createdStream = await CreateStream(
+            streamTitle,
+            selectedCategory,
+            streamDescription,
+            user.id,
+            socket.id 
+          );
+          console.log("STREAM ID:", createdStream.id);
 
+          setStreamId(createdStream.id);
+          streamIdRef.current = createdStream.id;
+        } catch (error) {
+          console.error("Failed to create stream record:", error);
+         
+          socket.disconnect();
+          socketRef.current = null;
+          setStatus("Failed to create stream");
+          return;
+        }
+      }
+
+   
+      socket.on("disconnect", async () => {
+        console.warn("Socket disconnected — auto ending stream");
+
+        try {
+          if (streamIdRef.current) {
+            await EndStream(streamIdRef.current);
+          }
+        } catch (err) {
+          console.error("Failed to end stream on disconnect", err);
+        }
+
+        cleanupAll();
+
+        setStarted(false);
+        setStatus("Click to go live");
+        setMessages([]);
+        setIsMicMuted(false);
+        setIsVideoDisabled(false);
+        setVideoTrack(null);
+        setAudioTrack(null);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+
+        socketRef.current = null;
+        setStreamId(null);
+        streamIdRef.current = null;
+      });
+
+      const res = await fetch("http://localhost:3000/rtpCapabilities");
       const rtpCapabilities = await res.json();
 
       const device = new mediasoupClient.Device();
@@ -311,21 +349,29 @@ export default function Broadcaster() {
       setStatus("Error starting live");
 
       cleanupAll();
+
       if (socketRef.current) {
         try {
           socketRef.current.disconnect();
         } catch {}
+        socketRef.current = null;
+      }
+
+      if (streamIdRef.current) {
+        try {
+          await EndStream(streamIdRef.current);
+        } catch {}
+        setStreamId(null);
+        streamIdRef.current = null;
       }
     }
   };
 
   const endStream = async () => {
     try {
-      if (user?.id) {
+      if (streamIdRef.current) {
         try {
-          if (streamIdRef.current) {
-            await EndStream(streamIdRef.current);
-          }
+          await EndStream(streamIdRef.current);
         } catch (error) {
           console.error("Failed to end stream in backend:", error);
         }
@@ -334,7 +380,9 @@ export default function Broadcaster() {
       cleanupAll();
       setStreamId(null);
       streamIdRef.current = null;
-    } catch (e) {}
+    } catch (e) {
+      console.error("Error during stream cleanup:", e);
+    }
 
     if (videoRef.current?.srcObject) {
       try {
@@ -374,8 +422,6 @@ export default function Broadcaster() {
       setIsVideoDisabled(!videoTrack.enabled);
     }
   };
-
-  if (!isMounted) return null;
 
   return (
     <div className="min-h-screen bg-[#0a0a0e] text-white p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -440,7 +486,7 @@ export default function Broadcaster() {
               <LucideIcons.AlertTriangle className="w-6 h-6 text-white animate-pulse" />
               <div>
                 <p className="font-bold text-white text-lg">
-                   LIVE STREAM ACTIVE
+                  LIVE STREAM ACTIVE
                 </p>
                 <p className="text-red-100 text-sm mt-1">
                   Do NOT reload this tab.

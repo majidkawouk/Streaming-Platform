@@ -7,7 +7,7 @@ const streamRepo = AppDataSource.getRepository(Stream);
 const userRepo = AppDataSource.getRepository(User);
 
 export const createStream = async (req, res) => {
-  const { title, category, description, userId } = req.body;
+  const { title, category, description, userId, socket_id } = req.body;
 
   if (!title || !category || !userId) {
     return res.status(400).json({ message: "Missing fields" });
@@ -17,6 +17,7 @@ export const createStream = async (req, res) => {
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
+  
   const active = await streamRepo.findOne({
     where: { user: { id: userId }, is_live: true },
   });
@@ -35,6 +36,7 @@ export const createStream = async (req, res) => {
     stream_key: uuidv4(),
     is_live: true,
     started_at: new Date(),
+    socket_id,
   });
 
   await streamRepo.save(stream);
@@ -43,6 +45,7 @@ export const createStream = async (req, res) => {
     id: stream.id,
     title: stream.title,
     category: stream.category,
+    socket_id: stream.socket_id,
   });
 };
 

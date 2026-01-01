@@ -20,6 +20,11 @@ export default new EntitySchema({
       type: "varchar",
       nullable: true,
     },
+      socket_id: {
+      type: "varchar",
+      nullable: true,
+      unique: true,
+    },
     is_live: {
       type: "boolean",
       default: false,

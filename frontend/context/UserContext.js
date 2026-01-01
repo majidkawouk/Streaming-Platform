@@ -94,7 +94,13 @@ export const UserProvider = ({ children }) => {
     localStorage.removeItem("token");
   };
 
-  const CreateStream = async (title, category, description, userId) => {
+  const CreateStream = async (
+    title,
+    category,
+    description,
+    userId,
+    socket_id
+  ) => {
     const token = localStorage.getItem("token");
     const res = await fetch("http://localhost:3000/streams", {
       method: "POST",
@@ -107,6 +113,7 @@ export const UserProvider = ({ children }) => {
         category,
         description,
         userId,
+        socket_id,
       }),
     });
 
