@@ -15,7 +15,7 @@ const redisclient = createClient({
 });
 
 redisclient.on("connect", () => {
-  console.log("Redis connected");
+  console.log("Redis connected successfully");
 });
 
 redisclient.on("error", (err) => {
@@ -24,7 +24,7 @@ redisclient.on("error", (err) => {
 
 await redisclient.connect();
 
-await redisclient.set("test", "hello");
+await redisclient.set("test", "redis is working fine");
 console.log(await redisclient.get("test"));
 
 const app = express();
