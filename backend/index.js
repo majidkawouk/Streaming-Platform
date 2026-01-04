@@ -9,6 +9,33 @@ import authRoutes from "./routes/auth.routes.js";
 import streamRoutes from "./routes/stream.routes.js";
 import followersRoutes from "./routes/followers.routes.js";
 import { createClient } from "redis";
+import { S3Client, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+const S3Client = new S3Client({
+  forcepathstyle: true,
+  region: process.env.S3_REGION,
+  endpoint: process.env.S3_ENDPOINT,
+  credentials: {
+    accesskeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY,
+  },
+});
+
+app.post("/get-upload-url", async (req, res) => {
+  const { fileName, fileType } = req.body;
+  const command = new PutObjectCommand({
+    Bucket: "streams",
+    key: `uploads/${Date.now()}-${fileName}`,
+    ContentType: fileType,
+  });
+  try {
+    const url = await getSignedUrl(S3Client, command, { expiresIn: 60 });
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: "failed to generate url" });
+  }
+});
 
 const redisclient = createClient({
   url: "redis://127.0.0.1:6379",
@@ -117,8 +144,6 @@ io.on("connection", (socket) => {
       dtlsParameters: transport.dtlsParameters,
     });
   });
-
- 
 
   socket.on("connectTransport", async ({ dtlsParameters }) => {
     const t = Object.values(transports).find((t) => t.socketId === socket.id);
