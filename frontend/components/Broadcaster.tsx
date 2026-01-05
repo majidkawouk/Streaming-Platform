@@ -33,6 +33,50 @@ export default function Broadcaster() {
   const mixedDestinationRef = useRef<MediaStream | null>(null);
   const [streamId, setStreamId] = useState<number | null>(null);
   const streamIdRef = useRef<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunks = useRef<Blob[]>([]);
+
+  async function startUpload(file: File): Promise<string | null> {
+    try {
+      const res = await fetch("http://localhost:3000/get-upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to get upload URL: ${res.statusText}`);
+      }
+
+      const { uploadUrl, publicUrl } = await res.json();
+
+      if (!uploadUrl || !publicUrl) {
+        throw new Error("Invalid upload response from server");
+      }
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Upload failed: ${uploadRes.statusText}`);
+      }
+
+      console.log("Upload finished:", publicUrl);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      return null;
+    }
+  }
 
   useEffect(() => {
     if (!started) return;
@@ -222,7 +266,7 @@ export default function Broadcaster() {
             selectedCategory,
             streamDescription,
             user.id,
-            socket.id 
+            socket.id
           );
           console.log("STREAM ID:", createdStream.id);
 
@@ -230,7 +274,7 @@ export default function Broadcaster() {
           streamIdRef.current = createdStream.id;
         } catch (error) {
           console.error("Failed to create stream record:", error);
-         
+
           socket.disconnect();
           socketRef.current = null;
           setStatus("Failed to create stream");
@@ -238,7 +282,6 @@ export default function Broadcaster() {
         }
       }
 
-   
       socket.on("disconnect", async () => {
         console.warn("Socket disconnected — auto ending stream");
 
@@ -343,6 +386,18 @@ export default function Broadcaster() {
 
         setStatus("LIVE");
         setStarted(true);
+
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: "video/webm; codecs=vp9",
+        });
+        mediaRecorderRef.current = mediaRecorder;
+        recordedChunks.current = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            recordedChunks.current.push(e.data);
+          }
+        };
+        mediaRecorder.start(1000);
       });
     } catch (err: any) {
       console.error("Broadcast error:", err);
@@ -368,47 +423,106 @@ export default function Broadcaster() {
   };
 
   const endStream = async () => {
+    console.log(" Ending stream...");
+
     try {
-      if (streamIdRef.current) {
-        try {
-          await EndStream(streamIdRef.current);
-        } catch (error) {
-          console.error("Failed to end stream in backend:", error);
-        }
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
+        await new Promise<void>((resolve, reject) => {
+          mediaRecorderRef.current!.onstop = async () => {
+            try {
+              console.log("🎬 Recorder stopped, processing video...");
+
+              const blob = new Blob(recordedChunks.current, {
+                type: "video/webm",
+              });
+
+              const file = new File(
+                [blob],
+                `stream-${streamIdRef.current}-${Date.now()}.webm`,
+                { type: "video/webm" }
+              );
+
+              console.log(
+                ` Video size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`
+              );
+
+              const url = await startUpload(file);
+
+              console.log(" Uploaded video URL:", url);
+              console.log(" Stream ID:", streamIdRef.current);
+
+              if (!url || !streamIdRef.current) {
+                throw new Error("Missing videoUrl or streamId");
+              }
+              console.log("STREAM ID:", streamIdRef.current);
+              console.log("PUBLIC URL:", url);
+              const saveRes = await fetch(
+                `http://localhost:3000/streams/${streamIdRef.current}/video-url`,
+                {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ url }),
+                }
+              );
+
+              if (!saveRes.ok) {
+                const err = await saveRes.text();
+                throw new Error(`DB save failed: ${err}`);
+              }
+
+              console.log("Video URL saved to database");
+              resolve();
+            } catch (err) {
+              console.error("Upload/save failed:", err);
+              reject(err);
+            }
+          };
+
+          mediaRecorderRef.current!.stop();
+        });
       }
 
-      cleanupAll();
-      setStreamId(null);
-      streamIdRef.current = null;
-    } catch (e) {
-      console.error("Error during stream cleanup:", e);
+      if (streamIdRef.current) {
+        console.log("Ending stream in backend...");
+        await EndStream(streamIdRef.current);
+      }
+    } catch (err) {
+      console.error(" Error while ending stream:", err);
     }
 
-    if (videoRef.current?.srcObject) {
-      try {
+    try {
+      cleanupAll();
+
+      if (videoRef.current?.srcObject) {
         (videoRef.current.srcObject as MediaStream)
           .getTracks()
           .forEach((t) => t.stop());
-      } catch {}
-      videoRef.current.srcObject = null;
-    }
+        videoRef.current.srcObject = null;
+      }
 
-    if (socketRef.current) {
-      try {
+      if (socketRef.current) {
         socketRef.current.disconnect();
-      } catch {}
-      socketRef.current = null;
+        socketRef.current = null;
+      }
+
+      streamIdRef.current = null;
+      setStreamId(null);
+      setStarted(false);
+      setStatus("Click to go live");
+      setMessages([]);
+      setIsMicMuted(false);
+      setIsVideoDisabled(false);
+      setVideoTrack(null);
+      setAudioTrack(null);
+
+      console.log(" Stream fully ended and cleaned up");
+    } catch (cleanupErr) {
+      console.error("Cleanup error:", cleanupErr);
     }
-
-    setStarted(false);
-    setStatus("Click to go live");
-    setMessages([]);
-    setIsMicMuted(false);
-    setIsVideoDisabled(false);
-    setVideoTrack(null);
-    setAudioTrack(null);
   };
-
   const toggleMuteMic = () => {
     if (audioTrack) {
       audioTrack.enabled = !audioTrack.enabled;

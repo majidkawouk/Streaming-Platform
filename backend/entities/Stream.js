@@ -20,10 +20,14 @@ export default new EntitySchema({
       type: "varchar",
       nullable: true,
     },
-      socket_id: {
+    socket_id: {
       type: "varchar",
       nullable: true,
       unique: true,
+    },
+    Stream_Url: {
+      type: "varchar",
+      nullable: true,
     },
     is_live: {
       type: "boolean",

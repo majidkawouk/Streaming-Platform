@@ -9,32 +9,17 @@ import authRoutes from "./routes/auth.routes.js";
 import streamRoutes from "./routes/stream.routes.js";
 import followersRoutes from "./routes/followers.routes.js";
 import { createClient } from "redis";
-import { S3Client, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const S3Client = new S3Client({
-  forcepathstyle: true,
+const s3Client = new S3Client({
+  forcePathStyle: true,
   region: process.env.S3_REGION,
   endpoint: process.env.S3_ENDPOINT,
   credentials: {
-    accesskeyId: process.env.S3_ACCESS_KEY,
+    accessKeyId: process.env.S3_ACCESS_KEY,
     secretAccessKey: process.env.S3_SECRET_KEY,
   },
-});
-
-app.post("/get-upload-url", async (req, res) => {
-  const { fileName, fileType } = req.body;
-  const command = new PutObjectCommand({
-    Bucket: "streams",
-    key: `uploads/${Date.now()}-${fileName}`,
-    ContentType: fileType,
-  });
-  try {
-    const url = await getSignedUrl(S3Client, command, { expiresIn: 60 });
-    res.json({ url });
-  } catch (err) {
-    res.status(500).json({ error: "failed to generate url" });
-  }
 });
 
 const redisclient = createClient({
@@ -248,6 +233,27 @@ io.on("connection", (socket) => {
   });
 });
 
+app.post("/get-upload-url", async (req, res) => {
+  const { fileName, fileType } = req.body;
+  const key = `uploads/${Date.now()}-${fileName}`;
+  const command = new PutObjectCommand({
+    Bucket: "streams",
+    Key: key,
+    ContentType: fileType,
+  });
+  try {
+    const uploadUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 60,
+    });
+    const publicUrl = `https://joegyxpfdkixsygujftu.supabase.co/storage/v1/object/public/streams/${key}`;
+    res.json({
+      uploadUrl,
+      publicUrl,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "failed to generate url" });
+  }
+});
 server.listen(3000, () =>
   console.log(" Server running on http://localhost:3000")
 );

@@ -17,7 +17,7 @@ export const createStream = async (req, res) => {
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
-  
+
   const active = await streamRepo.findOne({
     where: { user: { id: userId }, is_live: true },
   });
@@ -81,4 +81,53 @@ export const endStream = async (req, res) => {
     success: true,
     streamId,
   });
+};
+
+export const CreateStreamUrl = async (req, res) => {
+  const { url } = req.body;
+  const { id } = req.params;
+  console.log("URL FROM BODY:", url);
+
+  if (!url || !id) {
+    return res.status(400).json({
+      message: "missing url or streamId",
+    });
+  }
+
+  const stream = await streamRepo.findOne({
+    where: { id: Number(id) },
+  });
+
+  if (!stream) {
+    return res.status(404).json({
+      message: "stream not found",
+    });
+  }
+
+  stream.Stream_Url = url;
+  await streamRepo.save(stream);
+
+  return res.json({
+    success: true,
+    streamId: id,
+    videoUrl: url,
+  });
+};
+
+export const getStreamUrlByUserId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+    const stream = await streamRepo.findOne({ where: { user :{id: id} } });
+    if (!stream) {
+      return res.status(404).json({ error: "Stream not found for this user" });
+    }
+    return res.json(stream);
+    
+  } catch (error) {
+    console.error("Error fetching stream:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 };
