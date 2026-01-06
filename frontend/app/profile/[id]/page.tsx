@@ -1,384 +1,182 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
-import StreamThum from "@/components/StreamThum";
 import Link from "next/link";
 import * as LucideIcons from "lucide-react";
 
-interface UserProfile {
+interface ProfileUser {
   id: string;
   username: string;
   email: string;
-  followers?: number;
-  following?: number;
-  totalViews?: number;
-  created_at?: string;
 }
 
 interface Stream {
-  id: string | number;
+  id: string;
   title: string;
   category: string;
-  user?: { id: string | number };
+  Stream_Url?: string | null;
+  is_live?: boolean;
 }
 
-export default function Profile() {
+export default function ProfilePage() {
   const params = useParams();
+  const userId = params.id as string;
+
   const { user: currentUser, token } = useUser();
 
-  const userId = params?.id as string;
-  const isOwnProfile = currentUser?.id === userId;
-
-  const [profileUser, setProfileUser] = useState<UserProfile | null>(null);
-  const [userStreams, setUserStreams] = useState<Stream[]>([]);
+  const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
+  const [streams, setStreams] = useState<Stream[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("streams");
-  const [isMounted, setIsMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const isOwn = String(currentUser?.id) === String(userId);
 
   useEffect(() => {
-    const fetchProfileData = async () => {
-      try {
-        const profileRes = await fetch(
-          `http://localhost:3000/followers/${userId}`
-        );
-        if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          setProfileUser(profileData);
-        }
+    if (!userId) return;
 
-        const streamsRes = await fetch(`http://localhost:3000/streams`);
-        if (streamsRes.ok) {
-          const streamsData = await streamsRes.json();
-          const filtered = streamsData.filter(
-            (s: Stream) => String(s.user?.id) === String(userId)
-          );
-          setUserStreams(filtered);
+    const load = async () => {
+      try {
+        const pr = await fetch(`http://localhost:3000/followers/${userId}`);
+        if (pr.ok) setProfileUser(await pr.json());
+
+        const sr = await fetch(`http://localhost:3000/streams/${userId}/url`);
+        if (sr.ok) {
+          const data = await sr.json();
+          setStreams(Array.isArray(data) ? data : [data]);
         }
-      } catch (err) {
-        console.error("Error fetching profile:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (userId) fetchProfileData();
+    load();
   }, [userId]);
 
   useEffect(() => {
     if (!token || !userId) return;
-    const check = async () => {
-      const res = await fetch(
-        `http://localhost:3000/followers/${userId}/is-following`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setIsFollowing(Boolean(data.isFollowing));
-      }
-    };
-    check();
+
+    fetch(`http://localhost:3000/followers/${userId}/is-following`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setIsFollowing(Boolean(d.isFollowing)));
   }, [userId, token]);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
- 
   const handleFollow = async () => {
-    if (!token) return alert("You must be logged in to follow users");
+    if (!token) return alert("Login required");
 
-    try {
-      const url = isFollowing
-        ? "http://localhost:3000/followers/unfollow"
-        : "http://localhost:3000/followers/follow";
+    const endpoint = isFollowing
+      ? "http://localhost:3000/followers/unfollow"
+      : "http://localhost:3000/followers/follow";
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ targetUserId: userId }),
-      });
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ targetUserId: userId }),
+    });
 
-      if (res.ok) {
-        setIsFollowing(!isFollowing);
-        setProfileUser((p) =>
-          p
-            ? {
-                ...p,
-                followers: p.followers
-                  ? p.followers + (isFollowing ? -1 : 1)
-                  : 1,
-              }
-            : null
-        );
-      } else {
-        const err = await res.json();
-        console.error("Follow failed:", err);
-      }
-    } catch (error) {
-      console.error("Follow error:", error);
-    }
+    if (res.ok) setIsFollowing((p) => !p);
   };
-  if(!isMounted){
-    return null;
-  }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0e] text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin mb-4">
-            <LucideIcons.Loader className="w-12 h-12 text-cyan-500" />
-          </div>
-          <p className="text-gray-400">Loading profile...</p>
-        </div>
+      <div className="min-h-screen bg-[#0a0a0e] flex items-center justify-center">
+        <LucideIcons.Loader className="w-12 h-12 animate-spin text-cyan-500" />
       </div>
     );
   }
 
- 
   if (!profileUser) {
     return (
-      <div className="min-h-screen bg-[#0a0a0e] text-white flex items-center justify-center">
-        <div className="text-center">
-          <LucideIcons.AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-lg">User not found</p>
-        </div>
+      <div className="min-h-screen bg-[#0a0a0e] flex items-center justify-center text-white">
+        User not found
       </div>
     );
   }
 
- 
   return (
     <div className="min-h-screen bg-[#0a0a0e] text-white">
-    
-      <div className="bg-gradient-to-r from-cyan-600 to-cyan-400 h-48 relative">
-        <div className="absolute inset-0 bg-[#0a0a0e]/30"></div>
-      </div>
+      <div className="bg-gradient-to-r from-cyan-600 to-cyan-400 h-48" />
 
-      <div className="max-w-6xl mx-auto px-4 pb-12">
-     
-        <div className="bg-[#181822] rounded-xl shadow-2xl p-8 -mt-24 relative z-10 mb-8">
-          <div className="flex flex-col md:flex-row gap-8 items-start md:items-end">
-          
-            <div className="flex-shrink-0">
-              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center shadow-lg border-4 border-[#28283d]">
-                <LucideIcons.User className="w-16 h-16 text-white" />
-              </div>
-            </div>
+      <div className="max-w-6xl mx-auto px-4 pb-12 -mt-24">
+        <div className="bg-[#181822] rounded-xl p-8 mb-8">
+          <h1 className="text-4xl font-bold">{profileUser.username}</h1>
 
-       
-            <div className="flex-1">
-              <div className="mb-4">
-                <h1 className="text-4xl font-bold mb-2">
-                  {profileUser.username}
-                </h1>
-                <p className="text-gray-400 mb-4">
-                  @{profileUser.username.toLowerCase()}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-[#28283d] p-4 rounded-lg border border-[#35354a]">
-                  <p className="text-gray-400 text-sm mb-1">Followers</p>
-                  <p className="text-2xl font-bold text-cyan-400">
-                    {profileUser.followers || 0}
-                  </p>
-                </div>
-                <div className="bg-[#28283d] p-4 rounded-lg border border-[#35354a]">
-                  <p className="text-gray-400 text-sm mb-1">Following</p>
-                  <p className="text-2xl font-bold text-cyan-400">
-                    {profileUser.following || 0}
-                  </p>
-                </div>
-                <div className="bg-[#28283d] p-4 rounded-lg border border-[#35354a]">
-                  <p className="text-gray-400 text-sm mb-1">Total Views</p>
-                  <p className="text-2xl font-bold text-cyan-400">
-                    {profileUser.totalViews || 0}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                {isOwnProfile ? (
-                  <>
-                    <button className="px-6 py-2 bg-cyan-500 hover:bg-cyan-600 rounded-lg font-semibold transition flex items-center gap-2">
-                      <LucideIcons.Settings className="w-4 h-4" />
-                      Edit Profile
-                    </button>
-                    <Link
-                      href="/broadcaster"
-                      className="px-6 py-2 bg-[#28283d] hover:bg-[#35354a] rounded-lg font-semibold transition flex items-center gap-2 border border-[#35354a]"
-                    >
-                      <LucideIcons.Play className="w-4 h-4" />
-                      Go Live
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    {!isMounted ? (
-                      <>
-                        <div className="w-36 h-10 bg-[#28283d] rounded-lg" />
-                        <div className="w-36 h-10 bg-[#28283d] rounded-lg" />
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={handleFollow}
-                          className={`px-6 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
-                            isFollowing
-                              ? "bg-[#28283d] hover:bg-[#35354a] border border-cyan-500"
-                              : "bg-cyan-500 hover:bg-cyan-600"
-                          }`}
-                        >
-                          <LucideIcons.UserPlus className="w-4 h-4" />
-                          {isFollowing ? "Following" : "Follow"}
-                        </button>
-
-                        <button className="px-6 py-2 bg-[#28283d] hover:bg-[#35354a] rounded-lg font-semibold transition flex items-center gap-2 border border-[#35354a]">
-                          <LucideIcons.MessageCircle className="w-4 h-4" />
-                          Message
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-     
-        <div className="border-b border-[#35354a] mb-8">
-          <div className="flex gap-8">
+          {!isOwn && (
             <button
-              onClick={() => setActiveTab("streams")}
-              className={`px-4 py-3 font-semibold transition border-b-2 ${
-                activeTab === "streams"
-                  ? "text-cyan-400 border-cyan-400"
-                  : "text-gray-400 border-transparent hover:text-white"
+              onClick={handleFollow}
+              className={`mt-6 px-6 py-2 rounded-lg ${
+                isFollowing
+                  ? "bg-[#28283d]"
+                  : "bg-cyan-500 hover:bg-cyan-600"
               }`}
             >
-              <span className="flex items-center gap-2">
-                <LucideIcons.Video className="w-4 h-4" />
-                Streams
-              </span>
+              {isFollowing ? "Following" : "Follow"}
             </button>
-
-            <button
-              onClick={() => setActiveTab("about")}
-              className={`px-4 py-3 font-semibold transition border-b-2 ${
-                activeTab === "about"
-                  ? "text-cyan-400 border-cyan-400"
-                  : "text-gray-400 border-transparent hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <LucideIcons.Info className="w-4 h-4" />
-                About
-              </span>
-            </button>
-          </div>
+          )}
         </div>
 
-  
+        <div className="border-b border-[#35354a] mb-8 flex gap-8">
+          {["streams", "about"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className={`px-4 py-3 ${
+                activeTab === t
+                  ? "text-cyan-400 border-b-2 border-cyan-400"
+                  : "text-gray-400"
+              }`}
+            >
+              {t.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
         {activeTab === "streams" && (
-          <div>
-            {userStreams.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {userStreams.map((stream) => (
-                  <Link
-                    key={stream.id}
-                    href={`/${userId}`}
-                    className="group cursor-pointer"
-                  >
-                    <div className="bg-[#181822] rounded-xl overflow-hidden border border-[#35354a] hover:border-cyan-500 transition">
-                      <div className="aspect-video bg-[#28283d] relative overflow-hidden">
-                        <StreamThum />
-                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center">
-                          <LucideIcons.Play className="w-12 h-12 text-cyan-400 opacity-0 group-hover:opacity-100 transition" />
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        <h3 className="font-semibold text-white mb-2 line-clamp-2">
-                          {stream.title}
-                        </h3>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-cyan-400">
-                            {stream.category}
-                          </span>
-                          <span className="text-gray-400 flex items-center gap-1">
-                            <LucideIcons.Eye className="w-3 h-3" />0 views
-                          </span>
-                        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {streams.length ? (
+              streams.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/profile/${userId}/streams/${s.id}`}
+                  className="group"
+                >
+                  <div className="bg-[#181822] border border-[#35354a] hover:border-cyan-500 rounded-xl overflow-hidden">
+                    <div className="aspect-video bg-[#28283d] relative">
+                      {s.is_live && (
+                        <span className="absolute top-2 left-2 bg-red-600 text-xs px-2 py-1 rounded">
+                          LIVE
+                        </span>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <LucideIcons.Play className="w-12 h-12 text-cyan-400 opacity-0 group-hover:opacity-100 transition" />
                       </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
+
+                    <div className="p-4">
+                      <h3 className="font-semibold">{s.title}</h3>
+                      <span className="text-sm text-cyan-400">
+                        {s.category}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))
             ) : (
-              <div className="bg-[#181822] rounded-xl p-12 text-center border border-[#35354a]">
-                <LucideIcons.Video className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                <p className="text-gray-400 mb-2">No streams yet</p>
-                <p className="text-gray-500 text-sm">
-                  {isOwnProfile
-                    ? "Start streaming to share your content"
-                    : `${profileUser.username} hasn't streamed yet`}
-                </p>
-              </div>
+              <p className="text-gray-400">No streams yet</p>
             )}
           </div>
         )}
 
-       
         {activeTab === "about" && (
-          <div className="bg-[#181822] rounded-xl p-8 border border-[#35354a]">
-            <h2 className="text-2xl font-bold mb-6">
-              About {profileUser.username}
-            </h2>
-
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-gray-400 text-sm font-semibold mb-2">
-                  Email
-                </h3>
-                <p className="text-white">
-                  {isOwnProfile ? profileUser.email : "Hidden"}
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-gray-400 text-sm font-semibold mb-2">
-                  Member Since
-                </h3>
-                <p className="text-white">
-                  {profileUser.created_at
-                    ? new Date(profileUser.created_at).toLocaleDateString(
-                        "en-US",
-                        { year: "numeric", month: "long" }
-                      )
-                    : "-"}
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-gray-400 text-sm font-semibold mb-2">
-                  Bio
-                </h3>
-                <p className="text-gray-400">
-                  {isOwnProfile
-                    ? "No bio added yet"
-                    : `${profileUser.username} is a streamer on our platform`}
-                </p>
-              </div>
-            </div>
+          <div className="bg-[#181822] p-8 rounded-xl">
+            <p>Email: {isOwn ? profileUser.email : "Hidden"}</p>
           </div>
         )}
       </div>

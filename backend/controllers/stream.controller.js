@@ -117,17 +117,40 @@ export const CreateStreamUrl = async (req, res) => {
 export const getStreamUrlByUserId = async (req, res) => {
   try {
     const { id } = req.params;
+
     if (!id) {
       return res.status(400).json({ error: "User ID is required" });
     }
-    const stream = await streamRepo.findOne({ where: { user :{id: id} } });
-    if (!stream) {
-      return res.status(404).json({ error: "Stream not found for this user" });
+
+    const streams = await streamRepo.find({
+      where: { user: { id: Number(id) } },
+      order: { started_at: "DESC" },
+    });
+
+    if (!streams.length) {
+      return res.status(404).json({
+        error: "No streams found for this user",
+      });
     }
-    return res.json(stream);
-    
+
+    return res.json(streams);
   } catch (error) {
-    console.error("Error fetching stream:", error);
+    console.error("Error fetching streams:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
+};
+
+export const getStreamById = async (req, res) => {
+  const { id } = req.params;
+
+  const stream = await streamRepo.findOne({
+    where: { id: Number(id) },
+    relations: ["user"],
+  });
+
+  if (!stream) {
+    return res.status(404).json({ message: "Stream not found" });
+  }
+
+  res.json(stream);
 };
