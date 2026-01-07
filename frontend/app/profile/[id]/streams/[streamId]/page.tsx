@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import * as LucideIcons from "lucide-react";
+import { Play, Pause, Maximize, Loader, Volume2, VolumeX } from "lucide-react";
 
 interface Stream {
   id: string;
@@ -17,36 +17,36 @@ interface Stream {
 }
 
 export default function StreamPlayerPage() {
-  const { streamId, id: userId } = useParams();
+  const { streamId } = useParams<{ streamId: string }>();
   const router = useRouter();
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hideTimer = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const [stream, setStream] = useState<Stream | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  const [volume, setVolume] = useState(0.8);
+  const [muted, setMuted] = useState(false);
+
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     if (!streamId) return;
 
-    const load = async () => {
-      try {
-        const res = await fetch(
-          `http://localhost:3000/streams/by-id/${streamId}`
-        );
-
-        if (!res.ok) throw new Error("Stream not found");
-
-        setStream(await res.json());
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+    fetch(`http://localhost:3000/streams/by-id/${streamId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Stream not found");
+        return r.json();
+      })
+      .then(setStream)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
   }, [streamId]);
 
   const togglePlay = () => {
@@ -61,21 +61,52 @@ export default function StreamPlayerPage() {
     }
   };
 
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !muted;
+    setMuted(!muted);
+  };
+
+  const changeVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    setVolume(v);
+    if (videoRef.current) {
+      videoRef.current.volume = v;
+      videoRef.current.muted = v === 0;
+      setMuted(v === 0);
+    }
+  };
+
+  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!videoRef.current) return;
+    const t = Number(e.target.value);
+    videoRef.current.currentTime = t;
+    setCurrentTime(t);
+  };
+
   const goFullscreen = () => {
     videoRef.current?.requestFullscreen();
   };
 
+  const showControlsTemporarily = () => {
+    setShowControls(true);
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      setShowControls(false);
+    }, 2500);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <LucideIcons.Loader className="w-10 h-10 animate-spin text-cyan-500" />
+      <div className="min-h-screen  flex items-center justify-center">
+        <Loader className="w-10 h-10 animate-spin text-cyan-500" />
       </div>
     );
   }
 
-  if (error || !stream) {
+  if (!stream || error) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
+      <div className="min-h-screen flex flex-col items-center justify-center text-white">
         <p className="mb-4">{error || "Stream not found"}</p>
         <button
           onClick={() => router.back()}
@@ -88,31 +119,66 @@ export default function StreamPlayerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen  text-white">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="relative bg-[#0a0a0e] rounded-xl overflow-hidden">
+        <div
+          className="relative rounded-xl overflow-hidden"
+          onMouseMove={showControlsTemporarily}
+        >
           <video
             ref={videoRef}
             src={stream.Stream_Url}
-            className="w-full aspect-video"
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            controls={false}
+            className="w-full aspect-video bg-black"
+            preload="metadata"
+            onLoadedMetadata={(e) => {
+              const video = e.currentTarget;
+              setDuration(video.duration || 0);
+            }}
+            onTimeUpdate={(e) => {
+              const video = e.currentTarget;
+              setCurrentTime(video.currentTime);
+            }}
           />
 
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 flex items-center gap-4">
-            <button onClick={togglePlay}>
-              {isPlaying ? (
-                <LucideIcons.Pause className="w-6 h-6" />
-              ) : (
-                <LucideIcons.Play className="w-6 h-6" />
-              )}
-            </button>
+          {showControls && (
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 space-y-2">
+              <input
+                type="range"
+                min={0}
+                max={duration}
+                value={currentTime}
+                onChange={seek}
+                className="w-full h-1 accent-cyan-400 cursor-pointer"
+              />
 
-            <button onClick={goFullscreen}>
-              <LucideIcons.Maximize className="w-6 h-6" />
-            </button>
-          </div>
+              <div className="flex items-center gap-4">
+                <button onClick={togglePlay}>
+                  {isPlaying ? <Pause /> : <Play />}
+                </button>
+
+                <div className="flex items-center gap-2 group">
+                  <button onClick={toggleMute}>
+                    {muted ? <VolumeX /> : <Volume2 />}
+                  </button>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volume}
+                    onChange={changeVolume}
+                    className="w-20 h-1 accent-cyan-400 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex-1" />
+                <button onClick={goFullscreen}>
+                  <Maximize />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-6">
