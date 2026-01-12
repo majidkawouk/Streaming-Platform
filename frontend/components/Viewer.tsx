@@ -13,6 +13,7 @@ import {
 } from "react-icons/hi2";
 import { useUser } from "@/context/UserContext";
 import { RiFullscreenExitFill } from "react-icons/ri";
+import Link from "next/link";
 
 interface StreamData {
   id: string;
@@ -385,13 +386,15 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
           <div className="mt-4 px-2 space-y-3">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <Link href={`/profile/${streamData?.user?.id}`} className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                   <FaCrown className="text-xl" />
-                </div>
+                </Link>
                 <div className="flex-1">
                   <h2 className="font-semibold text-xl">
-                    {streamData?.user?.username ||
-                      `Streamer_${viewerId.slice(0, 6)}`}
+                    <Link href={`/profile/${streamData?.user?.id}`}>
+                      {streamData?.user?.username ||
+                        `Streamer_${viewerId.slice(0, 6)}`}
+                    </Link>
                   </h2>
                   <p className="text-sm text-gray-400">
                     {streamData?.category || "Live"} • Streaming now

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import StreamThum from "@/components/StreamThum";
 import Image from "next/image";
+import { VideoIcon } from "lucide-react";
 
 interface Producer {
   producerId: string;
@@ -149,17 +149,43 @@ export default function Mainpage() {
         ) : (
           <div className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
             {streamsList.map((stream) => (
-              <Link
-                key={stream.socketId}
-                href={`/${stream.socketId}`}
-                className="relative rounded-2xl shadow-lg"
-              >
-                <StreamThum
-                  title={stream.title}
-                  channelName={stream.username}
-                />
-              </Link>
-            ))}
+            <Link
+              key={stream.socketId}
+              href={`/${stream.socketId}`}
+              className="group bg-gray-900 rounded-xl overflow-hidden hover:ring-2 hover:ring-cyan-300 transition-all duration-300"
+            >
+              <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    
+               <VideoIcon className="w-20 h-20 text-cyan-300"/>
+                  </div>
+                </div>
+                <div className="absolute top-3 left-3 px-2 py-1 bg-red-600 rounded-md flex items-center gap-1.5">
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                  <span className="text-xs font-bold text-white uppercase">Live</span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <div className="p-4 space-y-2">
+                <h3 className="font-bold text-white text-lg line-clamp-2 group-hover:text-cyan-400 transition-colors">
+                  {stream.title || stream.name}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">
+                    {stream.username?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-300 font-medium truncate">{stream.username}</p>
+                    <p className="text-xs text-gray-500">{stream.category}</p>
+                  </div>
+                </div>
+                {stream.description && (
+                  <p className="text-sm text-gray-400 line-clamp-2">{stream.description}</p>
+                )}
+              </div>
+            </Link>
+          ))}
           </div>
         )}
       </section>
