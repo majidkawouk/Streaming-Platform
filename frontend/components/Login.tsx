@@ -18,7 +18,7 @@ export default function Login() {
     if (Msg !== "") {
       router.push("/");
     }
-  }, [Msg]);
+  }, [Msg, router]);
 
   const handlelogin = async (e: React.FormEvent) => {
     e.preventDefault();

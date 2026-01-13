@@ -14,6 +14,7 @@ import {
 import { useUser } from "@/context/UserContext";
 import { RiFullscreenExitFill } from "react-icons/ri";
 import Link from "next/link";
+import { TransportOptions, ConsumerOptions } from "mediasoup-client/types";
 
 interface StreamData {
   id: string;
@@ -26,7 +27,14 @@ interface StreamData {
     username: string;
   };
 }
-
+interface ProducerInfo {
+  socketId: string;
+  producerId: string;
+}
+interface ProducersResponse {
+  video: ProducerInfo[];
+  audio: ProducerInfo[];
+}
 export default function Viewer({ params }: { params: { viewer: string } }) {
   const viewerId = params.viewer;
 
@@ -74,14 +82,14 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
     const fetchProducers = async () => {
       try {
         const res = await fetch("http://localhost:3000/producers");
-        const data = await res.json();
+        const data: ProducersResponse = await res.json();
         console.log("All Producers:", data);
 
         const videoProducer = data.video.find(
-          (v: any) => v.socketId === viewerId
+          (v: ProducerInfo) => v.socketId === viewerId
         );
         const audioProducer = data.audio.find(
-          (a: any) => a.socketId === viewerId
+          (a: ProducerInfo) => a.socketId === viewerId
         );
 
         if (videoProducer) {
@@ -149,7 +157,7 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
         socket.emit(
           "createTransport",
           { consuming: true },
-          async (params: any) => {
+          async (params: TransportOptions) => {
             const recvTransport = device.createRecvTransport(params);
 
             recvTransport.on("connect", ({ dtlsParameters }, callback) => {
@@ -172,7 +180,7 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
                   producerId: videoProducerId,
                   rtpCapabilities: device.rtpCapabilities,
                 },
-                async (data: any) => {
+                async (data: ConsumerOptions & { error?: string }) => {
                   if (data.error) {
                     console.error("Cannot consume video stream:", data.error);
                     reject(data.error);
@@ -199,7 +207,7 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
                   producerId: audioProducerId,
                   rtpCapabilities: device.rtpCapabilities,
                 },
-                async (data: any) => {
+                async (data: ConsumerOptions & { error?: string }) => {
                   if (data.error) {
                     console.error("Cannot consume audio stream:", data.error);
                     reject(data.error);
@@ -386,7 +394,10 @@ export default function Viewer({ params }: { params: { viewer: string } }) {
           <div className="mt-4 px-2 space-y-3">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-3">
-                <Link href={`/profile/${streamData?.user?.id}`} className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <Link
+                  href={`/profile/${streamData?.user?.id}`}
+                  className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0"
+                >
                   <FaCrown className="text-xl" />
                 </Link>
                 <div className="flex-1">

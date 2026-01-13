@@ -5,6 +5,13 @@ import * as mediasoupClient from "mediasoup-client";
 import * as LucideIcons from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { CiVideoOff } from "react-icons/ci";
+import { TransportOptions } from "mediasoup-client/types";
+
+interface ChatMessage {
+  user: string;
+  text: string;
+  socketId?: string;
+}
 
 export default function Broadcaster() {
   const { user, CreateStream, EndStream } = useUser();
@@ -12,17 +19,17 @@ export default function Broadcaster() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  const [status, setStatus] = useState("Click to go live");
-  const [started, setStarted] = useState(false);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [streamTitle, setStreamTitle] = useState("My Awesome Stream");
-  const [streamDescription, setStreamDescription] = useState("");
-  const [categories] = useState(["Gaming", "Coding", "Music", "Art"]);
-  const [selectedCategory, setSelectedCategory] = useState("Gaming");
+  const [status, setStatus] = useState<string>("Click to go live");
+  const [started, setStarted] = useState<boolean>(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [streamTitle, setStreamTitle] = useState<string>("My Awesome Stream");
+  const [streamDescription, setStreamDescription] = useState<string>("");
+  const [categories] = useState<string[]>(["Gaming", "Coding", "Music", "Art"]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("Gaming");
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [selectedMic, setSelectedMic] = useState("");
-  const [selectedCam, setSelectedCam] = useState("");
+  const [selectedMic, setSelectedMic] = useState<string>("");
+  const [selectedCam, setSelectedCam] = useState<string>("");
   const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null);
   const [audioTrack, setAudioTrack] = useState<MediaStreamTrack | null>(null);
   const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
@@ -31,7 +38,6 @@ export default function Broadcaster() {
   const activeStreamsRef = useRef<MediaStream[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mixedDestinationRef = useRef<MediaStream | null>(null);
-  const [streamId, setStreamId] = useState<number | null>(null);
   const streamIdRef = useRef<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
@@ -72,7 +78,7 @@ export default function Broadcaster() {
       console.log("Upload finished:", publicUrl);
 
       return publicUrl;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Upload error:", error);
       return null;
     }
@@ -80,20 +86,47 @@ export default function Broadcaster() {
 
   useEffect(() => {
     if (!started) return;
-    const handler = async (e: BeforeUnloadEvent) => {
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
+      e.returnValue = "";
 
       if (streamIdRef.current) {
-        try {
-          await EndStream(streamIdRef.current);
-        } catch (err) {
-          console.error("Failed to end stream on unload", err);
+        const endpoint = `http://localhost:3000/streams/${streamIdRef.current}/end`;
+        const data = JSON.stringify({ streamId: streamIdRef.current });
+
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(endpoint, data);
+        } else {
+          fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: data,
+            keepalive: true,
+          }).catch((err) => console.error("Failed to end stream", err));
         }
       }
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [started, EndStream]);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && streamIdRef.current) {
+        const endpoint = `http://localhost:3000/streams/${streamIdRef.current}/end`;
+        const data = JSON.stringify({ streamId: streamIdRef.current });
+
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(endpoint, data);
+        }
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [started]);
 
   useEffect(() => {
     async function fetchDevices() {
@@ -116,7 +149,7 @@ export default function Broadcaster() {
     if (!started || !socketRef.current) return;
     const socket = socketRef.current;
 
-    const onMessage = (msg: any) => {
+    const onMessage = (msg: ChatMessage) => {
       if (msg.socketId === socket.id) return;
       setMessages((prev) => [...prev, { user: msg.user, text: msg.text }]);
     };
@@ -136,7 +169,9 @@ export default function Broadcaster() {
           } catch {}
         })
       );
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Error during stream cleanup:", e);
+    }
 
     activeStreamsRef.current = [];
     if (audioContextRef.current) {
@@ -223,7 +258,7 @@ export default function Broadcaster() {
   async function getCameraStreamHighFps(
     selectedCameraId?: string,
     selectedMicId?: string
-  ) {
+  ): Promise<MediaStream> {
     const constraints: MediaStreamConstraints = {
       video: selectedCameraId
         ? {
@@ -270,7 +305,6 @@ export default function Broadcaster() {
           );
           console.log("STREAM ID:", createdStream.id);
 
-          setStreamId(createdStream.id);
           streamIdRef.current = createdStream.id;
         } catch (error) {
           console.error("Failed to create stream record:", error);
@@ -308,7 +342,7 @@ export default function Broadcaster() {
         }
 
         socketRef.current = null;
-        setStreamId(null);
+
         streamIdRef.current = null;
       });
 
@@ -318,88 +352,90 @@ export default function Broadcaster() {
       const device = new mediasoupClient.Device();
       await device.load({ routerRtpCapabilities: rtpCapabilities });
 
-      socket.emit("createTransport", { consuming: false }, async (params) => {
-        const sendTransport = device.createSendTransport(params);
+      socket.emit(
+        "createTransport",
+        { consuming: false },
+        async (params: TransportOptions) => {
+          const sendTransport = device.createSendTransport(params);
 
-        sendTransport.on("connect", ({ dtlsParameters }, callback) => {
-          socket.emit("connectTransport", {
-            dtlsParameters,
-            consuming: false,
+          sendTransport.on("connect", ({ dtlsParameters }, callback) => {
+            socket.emit("connectTransport", {
+              dtlsParameters,
+              consuming: false,
+            });
+            callback();
           });
-          callback();
-        });
 
-        sendTransport.on("produce", ({ kind, rtpParameters }, callback) => {
-          socket.emit(
-            "produce",
-            {
-              kind,
-              rtpParameters,
-              streamId: streamIdRef.current,
-            },
-            ({ id }: any) => callback({ id })
-          );
-        });
+          sendTransport.on("produce", ({ kind, rtpParameters }, callback) => {
+            socket.emit(
+              "produce",
+              {
+                kind,
+                rtpParameters,
+                streamId: streamIdRef.current,
+              },
+              ({ id }: { id: string }) => callback({ id })
+            );
+          });
 
-        let stream: MediaStream;
-        if (streamType === "camera") {
-          stream = await getCameraStreamHighFps(
-            selectedCam || undefined,
-            selectedMic || undefined
-          );
-        } else {
-          stream = await getScreenStreamWithMixedAudio(
-            selectedMic || undefined
-          );
-        }
-
-        const videoTracks = stream.getVideoTracks();
-        const audioTracks = stream.getAudioTracks();
-
-        if (!videoTracks || videoTracks.length === 0) {
-          console.warn("No video tracks found in produced stream");
-        }
-        if (!audioTracks || audioTracks.length === 0) {
-          console.warn("No audio tracks found in produced stream");
-        }
-
-        const vTrack = videoTracks[0];
-        const aTrack = audioTracks[0];
-
-        setVideoTrack(vTrack || null);
-        setAudioTrack(aTrack || null);
-
-        if (videoRef.current) {
-          try {
-            videoRef.current.srcObject = stream;
-            videoRef.current.muted = true;
-            await videoRef.current.play();
-          } catch (err) {
-            console.warn("Preview play blocked:", err);
+          let stream: MediaStream;
+          if (streamType === "camera") {
+            stream = await getCameraStreamHighFps(
+              selectedCam || undefined,
+              selectedMic || undefined
+            );
+          } else {
+            stream = await getScreenStreamWithMixedAudio(
+              selectedMic || undefined
+            );
           }
-        }
 
-        if (vTrack)
-          await sendTransport.produce({ track: vTrack, kind: "video" });
-        if (aTrack)
-          await sendTransport.produce({ track: aTrack, kind: "audio" });
+          const videoTracks = stream.getVideoTracks();
+          const audioTracks = stream.getAudioTracks();
 
-        setStatus("LIVE");
-        setStarted(true);
-
-        const mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "video/webm; codecs=vp9",
-        });
-        mediaRecorderRef.current = mediaRecorder;
-        recordedChunks.current = [];
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) {
-            recordedChunks.current.push(e.data);
+          if (!videoTracks || videoTracks.length === 0) {
+            console.warn("No video tracks found in produced stream");
           }
-        };
-        mediaRecorder.start(1000);
-      });
-    } catch (err: any) {
+          if (!audioTracks || audioTracks.length === 0) {
+            console.warn("No audio tracks found in produced stream");
+          }
+
+          const vTrack = videoTracks[0];
+          const aTrack = audioTracks[0];
+
+          setVideoTrack(vTrack || null);
+          setAudioTrack(aTrack || null);
+
+          if (videoRef.current) {
+            try {
+              videoRef.current.srcObject = stream;
+              videoRef.current.muted = true;
+              await videoRef.current.play();
+            } catch (err) {
+              console.warn("Preview play blocked:", err);
+            }
+          }
+
+          if (vTrack) await sendTransport.produce({ track: vTrack });
+          if (aTrack) await sendTransport.produce({ track: aTrack });
+
+          setStatus("LIVE");
+          setStarted(true);
+
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: "video/webm; codecs=vp9",
+          });
+          mediaRecorderRef.current = mediaRecorder;
+          recordedChunks.current = [];
+          mediaRecorder.ondataavailable = (e: BlobEvent) => {
+            if (e.data.size > 0) {
+              recordedChunks.current.push(e.data);
+            }
+          };
+          mediaRecorder.start(1000);
+        }
+      );
+    } catch (err) {
       console.error("Broadcast error:", err);
       setStatus("Error starting live");
 
@@ -416,7 +452,6 @@ export default function Broadcaster() {
         try {
           await EndStream(streamIdRef.current);
         } catch {}
-        setStreamId(null);
         streamIdRef.current = null;
       }
     }
@@ -433,7 +468,7 @@ export default function Broadcaster() {
         await new Promise<void>((resolve, reject) => {
           mediaRecorderRef.current!.onstop = async () => {
             try {
-              console.log("🎬 Recorder stopped, processing video...");
+              console.log("Recorder stopped, processing video...");
 
               const blob = new Blob(recordedChunks.current, {
                 type: "video/webm",
@@ -446,13 +481,13 @@ export default function Broadcaster() {
               );
 
               console.log(
-                ` Video size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`
+                `Video size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`
               );
 
               const url = await startUpload(file);
 
-              console.log(" Uploaded video URL:", url);
-              console.log(" Stream ID:", streamIdRef.current);
+              console.log("Uploaded video URL:", url);
+              console.log("Stream ID:", streamIdRef.current);
 
               if (!url || !streamIdRef.current) {
                 throw new Error("Missing videoUrl or streamId");
@@ -473,10 +508,10 @@ export default function Broadcaster() {
                 throw new Error(`DB save failed: ${err}`);
               }
 
-              console.log("Video URL saved to database");
+              console.log(" Video URL saved to database");
               resolve();
             } catch (err) {
-              console.error("Upload/save failed:", err);
+              console.error(" Upload/save failed:", err);
               reject(err);
             }
           };
@@ -486,7 +521,7 @@ export default function Broadcaster() {
       }
 
       if (streamIdRef.current) {
-        console.log("Ending stream in backend...");
+        console.log(" Ending stream in backend...");
         await EndStream(streamIdRef.current);
       }
     } catch (err) {
@@ -509,7 +544,6 @@ export default function Broadcaster() {
       }
 
       streamIdRef.current = null;
-      setStreamId(null);
       setStarted(false);
       setStatus("Click to go live");
       setMessages([]);
@@ -518,11 +552,12 @@ export default function Broadcaster() {
       setVideoTrack(null);
       setAudioTrack(null);
 
-      console.log(" Stream fully ended and cleaned up");
+      console.log("Stream fully ended and cleaned up");
     } catch (cleanupErr) {
       console.error("Cleanup error:", cleanupErr);
     }
   };
+
   const toggleMuteMic = () => {
     if (audioTrack) {
       audioTrack.enabled = !audioTrack.enabled;
