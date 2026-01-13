@@ -49,17 +49,22 @@ export default function StreamPlayerPage() {
       .finally(() => setLoading(false));
   }, [streamId]);
 
-  const togglePlay = () => {
-    if (!videoRef.current) return;
+ const togglePlay = async () => {
+  if (!videoRef.current) return;
 
-    if (videoRef.current.paused) {
-      videoRef.current.play();
+  if (videoRef.current.paused) {
+    try {
+      await videoRef.current.play();
       setIsPlaying(true);
-    } else {
-      videoRef.current.pause();
+    } catch (err) {
+      console.error("Playback failed:", err);
       setIsPlaying(false);
     }
-  };
+  } else {
+    videoRef.current.pause();
+    setIsPlaying(false);
+  }
+};
 
   const toggleMute = () => {
     if (!videoRef.current) return;
