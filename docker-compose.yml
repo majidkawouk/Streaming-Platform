@@ -51,7 +51,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: streamplatform
-      MYSQL_ROOT_PASSWORD: omar
+      MYSQL_ROOT_PASSWORD: 1234
       MYSQL_ROOT_HOST: '%'
     ports:
       - "3306:3306"

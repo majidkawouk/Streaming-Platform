@@ -12,7 +12,8 @@
     "start": "node index.js",
     "typeorm": "typeorm",
     "typeorm:generate": "typeorm migration:generate -d ./config/data-source.js ./migrations/AutoMigration",
-    "typeorm:run": "typeorm migration:run -d ./config/data-source.js"
+    "typeorm:run": "typeorm migration:run -d ./config/data-source.js",
+    "migration:run": "typeorm migration:run -d ./config/data-source.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.962.0",

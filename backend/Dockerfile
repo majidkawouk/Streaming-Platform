@@ -1,7 +1,5 @@
-# Use Node LTS
 FROM node:20-bookworm
 
-# Install build essentials for Mediasoup
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -16,8 +14,8 @@ RUN npm install
 
 COPY . .
 
-# Mediasoup needs a large range of UDP ports
+
 EXPOSE 3000
 EXPOSE 10000-10100/udp
 
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npm run migration:run && npm start"]

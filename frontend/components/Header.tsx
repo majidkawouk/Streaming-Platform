@@ -56,7 +56,7 @@ export default function Header() {
                   <Link href={`/profile/${user?.id}`}>Profile</Link>
                 </li>
                 <li className="px-4 py-2 hover:bg-gray-800 cursor-pointer transition">
-                  <Link href="/settings">Settings</Link>
+                  <Link href="/broadcaster">stream dashboard</Link>
                 </li>
                 <li className="text-red-400 hover:bg-red-500/20 cursor-pointer transition">
                   {user ? (
