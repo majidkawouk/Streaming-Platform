@@ -38,8 +38,6 @@ A high-performance chat system decoupled from the main database.
 
 ## 🔄 Detailed Stream Lifecycle
 
-
-
 ### Phase 1: Going Live
 1. **Streamer** establishes a signaling connection.
 2. **Backend** creates a mediasoup `Router`.
@@ -78,8 +76,193 @@ The architecture transitions seamlessly from live to recorded content:
 
 ---
 
+## 🚀 Quick Start
+
+### Prerequisites
+- Docker & Docker Compose installed
+- Git
+
+### Installation
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/streaming-platform.git
+cd streaming-platform
+```
+
+2. **Set up environment variables**
+```bash
+# Copy the example environment file
+cp backend/.env.example backend/.env
+
+# Edit the .env file with your configuration (optional for local development)
+# The default values work out of the box for Docker setup
+```
+
+3. **Start all services with Docker**
+```bash
+docker-compose up -d
+```
+
+This single command will:
+- Start MySQL database
+- Start Redis cache
+- Run database migrations automatically
+- Start the backend server (Node.js + mediasoup)
+- Start the frontend (Next.js)
+
+4. **Verify services are running**
+```bash
+docker-compose ps
+```
+
+5. **Access the application**
+- Frontend: http://localhost:3001
+- Backend API: http://localhost:3000
+
+### Stopping the Application
+```bash
+docker-compose down
+```
+
+### Viewing Logs
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+### Rebuilding After Code Changes
+```bash
+docker-compose up -d --build
+```
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+- **Node.js 20** - Runtime environment
+- **mediasoup** - WebRTC SFU implementation
+- **Socket.IO** - Real-time bidirectional communication
+- **TypeORM** - Database ORM
+- **MySQL 8** - Primary database
+- **Redis** - Chat message caching
+
+### Frontend
+- **Next.js** - React framework
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **mediasoup-client** - WebRTC client
+
+### Infrastructure
+- **Docker & Docker Compose** - Containerization
+- **S3/Supabase** - VOD storage
+
+---
+
+## 🔧 Development Setup
+
+All services run in Docker containers. No need to install Node.js, MySQL, or Redis locally!
+
+### Environment Variables
+
+The backend requires these environment variables (automatically set by docker-compose):
+```env
+# Database
+DB_HOST=db
+DB_PORT=3306
+DB_NAME=streamplatform
+DB_USER=root
+DB_PASSWORD=1234
+
+# Redis
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# Server
+PORT=3000
+
+# Add your custom variables here (S3, JWT secrets, etc.)
+```
+
+### What Happens on Startup
+
+When you run `docker-compose up -d`:
+
+1. **MySQL Container** starts and creates the `streamplatform` database
+2. **Redis Container** starts for chat caching
+3. **Backend Container** waits for MySQL to be healthy, then:
+   - Installs dependencies
+   - Runs database migrations automatically
+   - Starts the Node.js server
+4. **Frontend Container** starts the Next.js application
+
+### Making Code Changes
+
+The containers use your local code. To see changes:
+```bash
+# Rebuild containers after code changes
+docker-compose up -d --build
+
+# Or rebuild specific service
+docker-compose up -d --build backend
+```
+
+### Database Migrations
+
+To create new migrations, run inside the backend container:
+```bash
+# Enter backend container
+docker exec -it streaming-backend sh
+
+# Generate migration
+npm run migration:generate -- -n MigrationName
+
+# Exit container
+exit
+```
+
+---
+
 ## 🚀 Technical Highlights
 
 * **No Media over WebSockets:** Keeps the signaling server fast by routing binary data through UDP.
 * **Scale-Out Ready:** Redis ensures that chat can remain synchronized even if signaling is scaled across multiple Node.js instances.
 * **Storage Efficient:** Browser-side recording removes the need for expensive server-side transcoding and recording.
+* **One-Command Setup:** Complete environment setup with automatic database migrations via Docker Compose.
+
+---
+
+## 🐛 Troubleshooting
+
+### MySQL Connection Issues
+```bash
+# Check if MySQL is ready
+docker-compose logs db
+
+# Restart MySQL container
+docker-compose restart db
+```
+
+### Port Already in Use
+```bash
+# Change ports in docker-compose.yml
+ports:
+  - "3001:3000"  # Change 3001 to another port
+```
+
+### Rebuilding Containers
+```bash
+# Remove all containers and volumes
+docker-compose down -v
+
+# Rebuild and start
+docker-compose up -d --build
+```
+
+---
+
