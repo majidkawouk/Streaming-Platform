@@ -145,7 +145,8 @@ docker-compose up -d --build
 ## 🛠️ Tech Stack
 
 ### Backend
-- **Node.js 20** - Runtime environment
+- **Node.js (express.js)** - Runtime environment
+- 
 - **mediasoup** - WebRTC SFU implementation
 - **Socket.IO** - Real-time bidirectional communication
 - **TypeORM** - Database ORM
