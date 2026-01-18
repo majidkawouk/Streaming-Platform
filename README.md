@@ -91,9 +91,6 @@ cd streaming-platform
 ```
 
 2. **Set up environment variables**
-```bash
-# Copy the example environment file
-cp backend/.env.example backend/.env
 
 # Edit the .env file with your configuration (optional for local development)
 # The default values work out of the box for Docker setup
