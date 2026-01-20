@@ -36,7 +36,7 @@ A high-performance chat system decoupled from the main database.
 
 ---
 
-## 🔄 Detailed Stream Lifecycle
+## Detailed Stream Lifecycle
 
 ### Phase 1: Going Live
 1. **Streamer** establishes a signaling connection.
