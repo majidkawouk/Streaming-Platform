@@ -235,7 +235,7 @@ exit
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### MySQL Connection Issues
 ```bash
